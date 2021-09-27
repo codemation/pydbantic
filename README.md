@@ -2,7 +2,7 @@
 'db' within pydantic - A single model for shaping, creating, accessing, storing data within a Database
 
 ## Key Features
-- Single Threaded Caching
+- Integrated Redis Caching Support
 - Automatic Migration on Schema Changes
 - Flexible Data Types
 - One Model to Manage
