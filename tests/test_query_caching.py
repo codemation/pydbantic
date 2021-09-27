@@ -14,9 +14,6 @@ async def test_query_caching(loaded_database_and_model_with_cache):
     perf2 = time.time() - (start + perf)
 
     print(f"perf: {perf} perf2: {perf2}")
-
-    if not os.environ['ENV'] == 'sqlite':
-        assert abs(perf2 - perf) < 0.1, f"cache should have resulted in better performance"
     
     assert len(sel2) == 800
 
@@ -35,9 +32,6 @@ async def test_query_caching(loaded_database_and_model_with_cache):
     sel3 = await Employee.select('*')
     await Employee.select('*')
     perf3 = time.time() - start
-    
-    if not os.environ['ENV'] == 'sqlite':
-        assert perf3 > prestart, f"expected lower perf after cache clear event"
 
     assert employee == await Employee.get(id=employee.id)
 
@@ -56,6 +50,3 @@ async def test_query_caching(loaded_database_and_model_with_cache):
     perf5 = time.time() - (start + perf4)
 
     print(f"perf4: {perf} perf5: {perf4}")
-
-    if not os.environ['ENV'] == 'sqlite':
-        assert abs(perf4 - perf5) < 0.1, f"cache should have resulted in better performance"
