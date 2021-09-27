@@ -2,3 +2,4 @@ pytest
 pytest-asyncio
 uvloop==0.16.0
 fastapi==0.68.1
+requests==2.26.0
