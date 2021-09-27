@@ -10,4 +10,4 @@ if __name__=='__main__':
     version = sys.stdin.readline().rstrip()
     if '(' in version and ')' in version:
         version = version[2:7]
-        print(f"{float(version)+0.001:.3f}")
+        print(f"{version[:-1]}{int(version[-1])+1}")

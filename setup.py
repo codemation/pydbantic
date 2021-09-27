@@ -3,7 +3,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 setuptools.setup(
      name='pydbantic',  
-     version='0.0.1',
+     version='NEXT_VERSION',
      packages=setuptools.find_packages(include=['pydbantic'], exclude=['build']),
      author="Joshua Jamison",
      author_email="joshjamison1@gmail.com",

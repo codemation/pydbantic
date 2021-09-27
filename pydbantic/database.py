@@ -1,5 +1,5 @@
-import asyncio
 import time
+import asyncio
 import sqlalchemy
 from pickle import dumps
 from typing import List
@@ -287,7 +287,7 @@ class Database():
             if cached_row:
                 self.log.debug(f"cache used - {cached_row}")
                 return cached_row
-                
+
         self.log.debug(f"running query: {query} with {values}")
         row = await self.database.fetch_all(query=query)
 
