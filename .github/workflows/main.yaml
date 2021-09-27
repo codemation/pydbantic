@@ -1,4 +1,4 @@
-name: Build and Package
+name: Unit and Integration Tests
 on: ['pull_request']
 jobs:
   # Label of the container job
