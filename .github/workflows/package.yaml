@@ -22,7 +22,7 @@ jobs:
         image: redis
         # Provide the password for postgres
         ports:
-        - 5432:5432
+        - 6379:6379
       postgres:
         # Docker Hub image
         image: postgres
