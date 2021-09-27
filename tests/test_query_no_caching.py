@@ -13,7 +13,8 @@ async def test_query_without_caching(loaded_database_and_model_no_cache):
     sel2 = await Employee.select('*')
     perf2 = time.time() - (start + perf)
 
-    print(f"perf: {perf} perf2: {perf2}"
+    print(f"perf: {perf} perf2: {perf2}")
+
     if not os.environ['ENV'] == 'sqlite':
         assert abs(perf - perf2) < 0.05, f"expected similar performance without caching"
     
