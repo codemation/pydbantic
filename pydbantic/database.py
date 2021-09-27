@@ -267,7 +267,8 @@ class Database():
         """
         if self.cache_enabled:
             await self.cache.invalidate(query.table.name)
-        self.log.warning(f"database query: {query} - values {values}")
+
+        self.log.debug(f"database query: {query} - values {values}")
         return await self.database.execute(query=query, values=values)
 
     async def execute_many(self, query, values):
