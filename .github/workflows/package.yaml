@@ -2,7 +2,7 @@ name: Tests, Packaging, and Upload to PyPI
 on:
   push:
     branches:
-      - master
+      - main
 jobs:
   # Label of the container job
   test-postgres-mysql-sqlite:
