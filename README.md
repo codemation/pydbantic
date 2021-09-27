@@ -115,6 +115,36 @@ Note: At this point only the models have been created, but nothing is saved in t
     await hr_employee.save()
 ```
 
+### Filtering
+```python
+    # get all hr managers currently employed
+    managers = await Employee.filter(
+        position=hr_manager,
+        is_employed=True
+    )
+
+```
+
+### Deleting
+```python
+    # remove all managers not employed anymore
+    for manager in await Employee.filter(
+        position=hr_manager,
+        is_employed=False
+    ):
+        await manager.delete()
+```
+### Updating
+```python
+    # raise salary of all managers
+    for manager in await Employee.filter(
+        position=hr_manager,
+        is_employed=False
+    ):
+        manager.salary = manager.salary + 1000.0
+        await manager.update() # or manager.save()
+```
+
 Save results in a new row created in `Employee` table as well as the related `EmployeeInfo`, `Position`, `Department` tables if non-existing.  
 
 ## What is pydbantic
@@ -125,7 +155,7 @@ Save results in a new row created in `Employee` table as well as the related `Em
 
 `pydbantic` believes that related data should be stored together, in the shape the developer plans to use
 
-`pydbantic` knows data is rarely flat and follows a set schema
+`pydbantic` knows data is rarely flat or follows a set schema
 
 `pydbantic` understand migrations are not fun, and does them for you
 
