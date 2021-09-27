@@ -82,7 +82,6 @@ class Database():
             columns=table.convert_fields_to_columns(model_fields=table_fields_list, update=True)
         )
         
-
         if not existing:
             await table_meta.insert()
         else:
@@ -268,7 +267,7 @@ class Database():
         """
         if self.cache_enabled:
             await self.cache.invalidate(query.table.name)
-
+        self.log.warning(f"database query: {query} - values {values}")
         return await self.database.execute(query=query, values=values)
 
     async def execute_many(self, query, values):
@@ -286,9 +285,10 @@ class Database():
         if self.cache_enabled:
             cached_row = await self.cache.get(dumps(cache_check))
             if cached_row:
-                #self.log.warning(f"cache used - {cached_row}")
+                self.log.debug(f"cache used - {cached_row}")
                 return cached_row
-        #self.log.warning(f"running query: {query} with {values}")
+                
+        self.log.debug(f"running query: {query} with {values}")
         row = await self.database.fetch_all(query=query)
 
         if self.cache_enabled and row:

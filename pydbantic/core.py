@@ -1,6 +1,5 @@
 from pydantic import BaseModel
 from typing import Optional, Union, List
-import pydantic
 import sqlalchemy
 from sqlalchemy import select
 from pickle import dumps, loads
@@ -22,10 +21,6 @@ class BaseMeta:
 class DataBaseModel(BaseModel):
     __metadata__: BaseMeta = BaseMeta()
 
-    #def __new__(cls, *args, **kwargs):
-    #    if not cls.__name__ in cls.__metadata__.tables:
-    #        cls.generate_sqlalchemy_table()
-    #    return super().__new__(cls)
     @classmethod
     def setup(cls, database):
         
@@ -35,7 +30,6 @@ class DataBaseModel(BaseModel):
         if not cls.__name__ in cls.__metadata__.tables:
             cls.generate_sqlalchemy_table()
         
-
     @classmethod
     def init_set_metadata(cls, metadata):
         """
@@ -63,7 +57,6 @@ class DataBaseModel(BaseModel):
             *cls.convert_fields_to_columns()
         )
         
-
     @classmethod
     def convert_fields_to_columns(
         cls, 
@@ -195,7 +188,11 @@ class DataBaseModel(BaseModel):
         return values
 
     async def save(self):
-        if not await self.exists:
+        primary_key = self.__metadata__.tables[self.__class__.__name__]['primary_key']
+        exists = await self.__class__.exists(
+            **{primary_key: getattr(self, primary_key)}
+        )
+        if not exists:
             return await self.insert()
         return await self.update()
 
@@ -205,8 +202,7 @@ class DataBaseModel(BaseModel):
         conditions = []
         values = []
         for cond, value in where.items():
-            # check if cond is a foreign key, handle pulling foreign references matching 
-            # query (
+            # check if cond is a foreign key, handle pulling foreign references matching query
             if cond in cls.__metadata__.tables[cls.__name__]['foreign_keys']:
                 foreign_column_name = cls.__metadata__.tables[cls.__name__]['foreign_keys'][cond]
                 foreign_primary_key = cls.__metadata__.tables[value.__class__.__name__]['primary_key']
@@ -250,6 +246,7 @@ class DataBaseModel(BaseModel):
         database = cls.__metadata__.database
 
         results = await database.fetch(sel, cls.__name__, values)
+
         if results:
             return True
         return False
@@ -399,27 +396,24 @@ class DataBaseModel(BaseModel):
         await self.__metadata__.database.execute(query, to_update)
 
             
-    async def delete(self, where: dict = None):
+    async def delete(self):
         table_name = self.__class__.__name__
         table = self.__metadata__.tables[table_name]['table']
-        if not where:
-            primary_key = self.__metadata__.tables[table_name]['primary_key']
-            where = {primary_key: getattr(self, primary_key)}
-
-        query, _ = self.where(table.delete(), where)
+        primary_key = self.__metadata__.tables[table_name]['primary_key']
+        query = table.delete(table).where(table.c[primary_key]==getattr(self, primary_key))
 
         return await self.__metadata__.database.execute(query, None)
     
     async def insert(self):
         table = self.__class__.get_table()
-        #table = self.__metadata__.tables[self.__class__.__name__]['table']
         
         values = await self.serialize(self.dict(), insert=True)
-        query = table.insert() #.values(values)
+        query = table.insert()
 
         return await self.__metadata__.database.execute(
             query, values
         )
+
     @classmethod
     async def get(cls, **p_key):
         for k in p_key:
