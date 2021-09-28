@@ -6,3 +6,4 @@ requests==2.26.0
 psycopg2==2.9.1
 PyMySQL==0.9.3
 aiomysql==0.0.21
+cryptography==3.4.8
