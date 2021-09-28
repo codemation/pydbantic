@@ -3,6 +3,7 @@ on:
   push:
     tags:
       - "*"
+jobs:
   package:
     name: Package Release to PyPI
     runs-on: ubuntu-latest
