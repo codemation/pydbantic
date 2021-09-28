@@ -7,6 +7,8 @@ from typing import List
 from databases import Database as _Database
 from pydbantic.core import DataBaseModel, TableMeta
 from pydbantic.cache import Cache, Redis
+from pydbantic.translations import DEFAULT_TRANSLATIONS
+
 import logging
 
 class Database():
@@ -21,11 +23,19 @@ class Database():
         self.database = database
         self.tables = []
         self.cache_enabled = cache_enabled
+        if 'sqlite' in str(self.database.url).lower():
+            self.db_type = 'SQLITE'
+        elif 'postgres' in str(self.database.url).lower():
+            self.db_type = 'POSTGRES'
+        elif 'mysql' in str(self.database.url).lower(): 
+            self.db_type = 'MYSQL'
+ 
         self.engine = sqlalchemy.create_engine(
             str(self.database.url),
             connect_args={'check_same_thread': False}
             if 'sqlite' in str(self.database.url) else {}
         )
+        self.DEFAULT_TRANSLATIONS = DEFAULT_TRANSLATIONS
 
         self.metadata = sqlalchemy.MetaData(self.engine)
 
@@ -49,6 +59,14 @@ class Database():
         setattr(self, table.__name__, table)
 
         self.metadata.create_all(self.engine)
+
+    def get_translated_column_type(self, input_type):
+        if input_type in self.DEFAULT_TRANSLATIONS[self.db_type]:
+            column_config = self.DEFAULT_TRANSLATIONS[self.db_type][input_type]
+        else:
+            column_config = self.DEFAULT_TRANSLATIONS[self.db_type]['default']
+
+        return column_config
 
     def setup_logger(self, logger=None, level=None):
         if logger:

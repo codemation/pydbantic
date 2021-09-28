@@ -4,9 +4,9 @@ from pydbantic import Database
 from tests.models import Employee
 
 @pytest.mark.asyncio
-async def test_database():
+async def test_database(db_url):
     db = await Database.create(
-        'sqlite:///test.db',
+        db_url,
         tables=[Employee],
         cache_enabled=True
     )
@@ -78,4 +78,6 @@ async def test_database():
     assert len(filtered_employee) == 1
 
     Employee.__metadata__.tables['Employee']['table'].drop()
+    
     db.metadata.drop_all()
+    await db.cache.redis.flushdb()

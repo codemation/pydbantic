@@ -18,6 +18,7 @@ from tests.models import Employee
 
 DB_PATH = {
     'sqlite': 'sqlite:///test.db',
+    'mysql': 'mysql://josh:abcd1234@127.0.0.1/database',
     'postgres': 'postgresql://postgres:abcd1234@localhost/database'
 }
 

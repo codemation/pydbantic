@@ -108,11 +108,15 @@ class DataBaseModel(BaseModel):
                 foreign_primary_key_name = field['type'].__metadata__.tables[foreign_table_name]['primary_key']
                 foreign_key_type = field['type'].__metadata__.tables[foreign_table_name]['column_map'][foreign_primary_key_name][1]
 
+                # cls.__metadata__.tables[name]['column_map'][field['name']] = (
+                #     field['type'].__metadata__.translations[foreign_key_type]
+                #         if foreign_key_type in field['type'].__metadata__.translations
+                #         else sqlalchemy.LargeBinary,
+                #         field['type']
+                # )
                 cls.__metadata__.tables[name]['column_map'][field['name']] = (
-                    field['type'].__metadata__.translations[foreign_key_type]
-                        if foreign_key_type in field['type'].__metadata__.translations
-                        else sqlalchemy.LargeBinary,
-                        field['type']
+                    cls.__metadata__.database.get_translated_column_type(foreign_key_type),
+                    field['type']
                 )
 
                 # store field name in map to quickly determine attribute is tied to 
@@ -120,25 +124,37 @@ class DataBaseModel(BaseModel):
                 cls.__metadata__.tables[name]['foreign_keys'][field['name']] =  (
                     f'fk_{foreign_table_name}_{foreign_primary_key_name}'.lower()
                 )
-
+                foreign_type_config = cls.__metadata__.tables[name]['column_map'][field['name']][0]
                 columns.append(
                     sqlalchemy.Column(
                         cls.__metadata__.tables[name]['foreign_keys'][field['name']],
-                        cls.__metadata__.tables[name]['column_map'][field['name']][0]
+                        foreign_type_config['column_type'](
+                            *foreign_type_config['args'],
+                            **foreign_type_config['kwargs']
+                        )
                     )
                 )
                 continue
 
+            # cls.__metadata__.tables[name]['column_map'][field['name']] = (
+            #     cls.__metadata__.translations[field['type']] 
+            #     if field['type'] in cls.__metadata__.translations else sqlalchemy.LargeBinary,
+            #     field['type']
+            # )
+
             cls.__metadata__.tables[name]['column_map'][field['name']] = (
-                cls.__metadata__.translations[field['type']] 
-                if field['type'] in cls.__metadata__.translations else sqlalchemy.LargeBinary,
+                cls.__metadata__.database.get_translated_column_type(field['type']),
                 field['type']
             )
 
+            column_type_config = cls.__metadata__.tables[name]['column_map'][field['name']][0]
             columns.append(
                 sqlalchemy.Column(
                     field['name'], 
-                    cls.__metadata__.tables[name]['column_map'][field['name']][0],
+                    column_type_config['column_type'](
+                        *column_type_config['args'], 
+                        **column_type_config['kwargs']
+                    ),
                     primary_key = (i == 0)
                 )
             )
@@ -180,7 +196,7 @@ class DataBaseModel(BaseModel):
                         await foreign_model.insert()
                 continue
 
-            if self.__metadata__.tables[name]['column_map'][k][0] is sqlalchemy.LargeBinary:
+            if self.__metadata__.tables[name]['column_map'][k][0]['column_type'] is sqlalchemy.LargeBinary:
                 values[k] = dumps(getattr(self, k))
                 continue
             values[k] = v
@@ -304,7 +320,7 @@ class DataBaseModel(BaseModel):
                     values[sel] = values[sel][0] if values[sel] else None
                     continue 
 
-                if cls.__metadata__.tables[cls.__name__]['column_map'][sel][0] == sqlalchemy.LargeBinary:
+                if cls.__metadata__.tables[cls.__name__]['column_map'][sel][0]['column_type'] == sqlalchemy.LargeBinary:
                     values[sel] = loads(result[value])
                     continue
 
@@ -347,7 +363,7 @@ class DataBaseModel(BaseModel):
                     values[sel] =  values[sel][0]
                     continue 
 
-                if cls.__metadata__.tables[cls.__name__]['column_map'][sel] == sqlalchemy.LargeBinary:
+                if cls.__metadata__.tables[cls.__name__]['column_map'][sel][0]['column_type'] == sqlalchemy.LargeBinary:
                     values[sel] = loads(result[value])
                     continue
                 values[sel] = result[value]
