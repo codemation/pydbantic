@@ -1,4 +1,24 @@
 import setuptools
+
+BASE_REQUIREMENTS = [
+    'SQLAlchemy==1.3.24', 
+    'databases==0.4.3', 
+    'aioredis==2.0.0', 
+    'pydantic==1.8.2',
+]
+MYSQL_REQUIREMENTS = [
+    'cryptography==3.4.8',
+    'mysqlclient==2.0.3',
+    'PyMySQL==0.9.3',
+]
+POSTGRES_REQUIREMENTS = [
+    'asyncpg==0.24.0',
+    'psycopg2==2.9.1',
+]
+LITE_REQUIREMENTS = [
+    'aiosqlite==0.17.0',
+]
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
 setuptools.setup(
@@ -17,12 +37,11 @@ setuptools.setup(
          "Operating System :: OS Independent",
      ],
      python_requires='>=3.7, <4',   
-     install_requires=[
-         'SQLAlchemy==1.3.24', 
-         'databases==0.4.3', 
-         'aioredis==2.0.0', 
-         'pydantic==1.8.2',
-         'asyncpg==0.24.0',
-         'aiosqlite==0.17.0'
-    ],
+     install_requires=BASE_REQUIREMENTS,
+     extras_require={
+         'all': BASE_REQUIREMENTS + POSTGRES_REQUIREMENTS + MYSQL_REQUIREMENTS + LITE_REQUIREMENTS,
+         'postgres': POSTGRES_REQUIREMENTS,
+         'mysql': MYSQL_REQUIREMENTS,
+         'sqlite': LITE_REQUIREMENTS
+     }
  )
