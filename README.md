@@ -6,6 +6,10 @@
 - Automatic Migration on Schema Changes
 - Flexible Data Types
 - One Model to Manage
+## Setup
+```bash
+$ pip install pydbantic
+```
 
 ## Basic Usage - Model
 
