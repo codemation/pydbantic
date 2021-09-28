@@ -44,9 +44,9 @@ DEFAULT_TRANSLATIONS = {
         }
     },
     "POSTGRES": {
-        str: {
-            "column_type": sqlalchemy.String,
-            "args": [60],
+        int: {
+            "column_type": sqlalchemy.Integer,
+            "args": [],
             "kwargs": {}
         },
         float: {
@@ -82,12 +82,7 @@ DEFAULT_TRANSLATIONS = {
 
         str: {
             "column_type": sqlalchemy.String,
-            "args": 60,
-            "kwargs": {}
-        },
-        str: {
-            "column_type": sqlalchemy.String,
-            "args": 60,
+            "args": [],
             "kwargs": {}
         },
     },
@@ -97,6 +92,11 @@ DEFAULT_TRANSLATIONS = {
             "args": [60],
             "kwargs": {}
         },
+        int: {
+            "column_type": sqlalchemy.Integer,
+            "args": [],
+            "kwargs": {}
+        },
         float: {
             "column_type": sqlalchemy.Float,
             "args": [],
@@ -126,17 +126,6 @@ DEFAULT_TRANSLATIONS = {
             "column_type": sqlalchemy.LargeBinary,
             "args": [],
             "kwargs": {}
-        },
-
-        str: {
-            "column_type": sqlalchemy.String,
-            "args": 60,
-            "kwargs": {}
-        },
-        str: {
-            "column_type": sqlalchemy.String,
-            "args": 60,
-            "kwargs": {}
-        },
+        }
     },
 }
