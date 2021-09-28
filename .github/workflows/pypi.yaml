@@ -1,3 +1,4 @@
+name: Package and Release on PyPI
 on:
   push:
     tags:
