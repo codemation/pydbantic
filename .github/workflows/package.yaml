@@ -68,7 +68,7 @@ jobs:
           pip install -r requirements-test.txt
       - name: Run Tests
         run: |
-          for env in sqlite postgres; do
+          for env in sqlite mysql postgres; do
             export ENV=$env; 
             pytest tests/test_database.py;
             pytest tests/test_model_insertions.py;

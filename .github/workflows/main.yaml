@@ -45,7 +45,7 @@ jobs:
           MYSQL_USER: josh
           MYSQL_PASSWORD: abcd1234
           MYSQL_ROOT_PASSWORD: abcd1234
-          MYSQL_DATABASE: joshdb
+          MYSQL_DATABASE: database
         ports:
         - 3306:3306
 
