@@ -227,7 +227,7 @@ class DataBaseModel(BaseModel):
             if not cond in table.c:
                 raise Exception(f"{cond} is not a valid column in {table}")
             query_value = value
-            if cls.__metadata__.tables[cls.__name__]['column_map'][cond][0] is sqlalchemy.LargeBinary:
+            if cls.__metadata__.tables[cls.__name__]['column_map'][cond][0]['column_type'] is sqlalchemy.LargeBinary:
                 query_value = dumps(value)
             conditions.append(table.c[cond] == query_value)
             values.append(query_value)
