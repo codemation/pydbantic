@@ -1,4 +1,4 @@
-![](logo.png)
+![](docs/images/logo.png)
 
 'db' within pydantic - A single model for shaping, creating, accessing, storing data within a Database
 
@@ -6,7 +6,7 @@
 - Integrated Redis Caching Support
 - Automatic Migration on Schema Changes
 - Flexible Data Types
-- One Model to Manage
+- One Model for type validation & database access
 ## Setup
 ```bash
 $ pip install pydbantic
