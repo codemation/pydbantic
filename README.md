@@ -2,6 +2,8 @@
 
 'db' within pydantic - A single model for shaping, creating, accessing, storing data within a Database
 
+[![Documentation Status](https://readthedocs.org/projects/pydbantic/badge/?version=latest)](https://pydbantic.readthedocs.io/en/latest/?badge=latest) [![PyPI version](https://badge.fury.io/py/pydbantic.svg)](https://badge.fury.io/py/pydbantic)[![Unit & Integration Tests](https://github.com/codemation/pydbantic/actions/workflows/package.yaml/badge.svg)](https://github.com/codemation/pydbantic/actions/workflows/package.yaml)
+
 ## Key Features
 - Integrated Redis Caching Support
 - Automatic Migration on Schema Changes
