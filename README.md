@@ -7,6 +7,10 @@
 - Automatic Migration on Schema Changes
 - Flexible Data Types
 - One Model for type validation & database access
+
+## Documentation
+[https://pydbantic.readthedocs.io/en/latest/](https://pydbantic.readthedocs.io/en/latest/)
+
 ## Setup
 ```bash
 $ pip install pydbantic
