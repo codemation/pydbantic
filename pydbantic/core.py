@@ -4,6 +4,8 @@ import sqlalchemy
 from sqlalchemy import select
 from pickle import dumps, loads
 
+from pydbantic import database
+
 
 class BaseMeta:
     translations: dict = {
@@ -450,3 +452,9 @@ class TableMeta(DataBaseModel):
     table_name: str
     model: dict
     columns: list
+
+class DatabaseInit(DataBaseModel):
+    database_url: str
+    status: Optional[str]
+    reservation: Optional[str]
+

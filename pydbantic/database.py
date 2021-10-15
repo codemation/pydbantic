@@ -1,11 +1,13 @@
 import time
 import asyncio
 import sqlalchemy
+import uuid
+from random import randint
 from pickle import dumps
 from typing import List
 
 from databases import Database as _Database
-from pydbantic.core import DataBaseModel, TableMeta
+from pydbantic.core import DataBaseModel, TableMeta, DatabaseInit
 from pydbantic.cache import Cache, Redis
 from pydbantic.translations import DEFAULT_TRANSLATIONS
 
@@ -52,6 +54,9 @@ class Database():
         # setup table_metadata table
         self.TableMeta = TableMeta
         self.TableMeta.setup(self)
+
+        self.DatbaseInit = DatabaseInit
+        self.DatbaseInit.setup(self)
 
         for table in tables:
             self.add_table(table)
@@ -135,6 +140,36 @@ class Database():
         """
         compare existing table schema's to current, migrate if required
         """
+
+        reservation = str(uuid.uuid4())
+
+        # checkout database for migrations
+        database_init = await DatabaseInit.get(database_url=str(self.database.url))
+
+        if not database_init:
+            database_init = DatabaseInit(
+                database_url=str(self.database.url),
+                reservation=reservation
+            )
+        else:
+            database_init.reservation = reservation
+
+        try:
+            await database_init.save()
+            await asyncio.sleep(3)
+            check = await DatabaseInit.get(database_url=str(self.database.url))
+            if check.reservation == reservation:
+                check.status='starting'
+                await check.save()
+
+        except Exception as e:
+            self.log.warning(f"unable to reserve database for migration - perhaps another worker is running?")
+
+        if not database_init.reservation == reservation:
+            while database_init.status != 'ready':
+                self.log.warning(f"waiting for database migration to complete - status {database_init}")
+                await asyncio.sleep(5)
+                database_init = await DatabaseInit.get(database_url=str(self.database.url))
 
         # get list of all tables in table_metadata table
 
@@ -275,6 +310,11 @@ class Database():
             await self.update_table_meta(table, existing=True)
 
             table.__metadata__.tables[table.__name__]['table'] = new_table
+
+        if reservation == database_init.reservation:
+            self.log.warning(f"database init - ready")
+            database_init.status == 'ready'
+            await database_init.update()
             
 
 
