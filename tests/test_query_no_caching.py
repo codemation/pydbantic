@@ -15,10 +15,6 @@ async def test_query_without_caching(loaded_database_and_model_no_cache):
 
     print(f"perf: {perf} perf2: {perf2}")
 
-    if not os.environ['ENV'] == 'sqlite':
-        assert abs(perf - perf2) < 0.05, f"expected similar performance without caching"
-    
-
     assert len(sel2) == 200
 
     # trigger cache clear
@@ -44,5 +40,3 @@ async def test_query_without_caching(loaded_database_and_model_no_cache):
     perf5 = time.time() - (start + perf4)
 
     print(f"perf4: {perf} perf5: {perf4}")
-    if not os.environ['ENV'] == 'sqlite':
-        assert abs(perf4 - perf3) < 0.05, f"expected similar performance without caching"
