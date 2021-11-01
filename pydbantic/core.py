@@ -1,10 +1,30 @@
-from pydantic import BaseModel
+import uuid
+from pydantic import BaseModel, Field
 from typing import Optional, Union, List
+from pydantic.typing import is_callable_type
 import sqlalchemy
 from sqlalchemy import select
 from pickle import dumps, loads
 
 from pydbantic import database
+
+class _Generic(BaseModel):
+    pass
+
+def resolve_missing_attribute(missing_error: str):
+    try:
+        missing_attr = ''.join(
+            missing_error.split("Can't get attribute")[1].split('on <module')
+        ).split('from')[0].split(' ')[1][1:-1]
+
+        missing_mod = ''.join(
+            missing_error.split("Can't get attribute")[1].split('on <module')
+        ).split('from')[0].split(' ')[3][1:-1]
+
+        mod = __import__(missing_mod)
+        setattr(mod, missing_attr, _Generic)
+    except Exception:
+        pass
 
 
 class BaseMeta:
@@ -19,9 +39,31 @@ class BaseMeta:
     }
     tables: dict = {}
 
+def PrimaryKey(default=..., ):
+    if isinstance(default, type(lambda x: x)):
+        return Field(default_factory=default, primary_key=True)
+    return Field(default=default, primary_key=True)
+
+def Default(default=...):
+    if isinstance(default, type(lambda x: x)):
+        return Field(default_factory=default)
+    return Field(default=default)
+
 
 class DataBaseModel(BaseModel):
     __metadata__: BaseMeta = BaseMeta()
+
+    @classmethod
+    async def refresh_models(cls):
+        """
+        convert rows into .dict() & save back to DB, refreshing any changed 
+        models
+        """
+        rows = await cls.all()
+        rows_dict = [row.dict() for row in rows]
+        rows_model = [cls(**row) for row in rows_dict]
+        for row in rows_model:
+            await row.update()
 
     @classmethod
     def setup(cls, database):
@@ -51,8 +93,7 @@ class DataBaseModel(BaseModel):
         if not hasattr(cls.__metadata__, 'metadata'):
             raise Exception(f"No connected sqlalchemy.MetaData() instance yet, first run {cls}.init_set_metadata()")
         name = cls.__name__
-        #if not name in cls.__metadata__.tables:
-        #    cls.__metadata__.tables[name] = {}
+
         cls.__metadata__.tables[name]['table'] = sqlalchemy.Table(
             name,
             cls.__metadata__.metadata,
@@ -76,6 +117,13 @@ class DataBaseModel(BaseModel):
         if not include:
             include = [f for f in cls.__fields__]
 
+        primary_key = None
+        for property, config in cls.schema()['properties'].items():
+            if 'primary_key' in config:
+                if primary_key:
+                    raise Exception(f"Duplicate Primary Key Specified for {cls.__name__}")
+                primary_key = property
+
         if not model_fields:
             model_fields_list = [
                 f for _,f in cls.__fields__.items() 
@@ -87,11 +135,13 @@ class DataBaseModel(BaseModel):
                 if field.name in alias:
                     field_name = alias[field.name]
                 model_fields.append({'name': field_name, 'type': field.type_, 'required': field.required})
+
         name = cls.__name__
+        primary_key = model_fields[0]['name'] if not primary_key else primary_key
         if not name in cls.__metadata__.tables or update:
-            #breakpoint()
+            
             cls.__metadata__.tables[name] = {
-                'primary_key': model_fields[0]['name'],
+                'primary_key': primary_key,
                 'column_map': {},
                 'foreign_keys': {},
             }
@@ -110,12 +160,7 @@ class DataBaseModel(BaseModel):
                 foreign_primary_key_name = field['type'].__metadata__.tables[foreign_table_name]['primary_key']
                 foreign_key_type = field['type'].__metadata__.tables[foreign_table_name]['column_map'][foreign_primary_key_name][1]
 
-                # cls.__metadata__.tables[name]['column_map'][field['name']] = (
-                #     field['type'].__metadata__.translations[foreign_key_type]
-                #         if foreign_key_type in field['type'].__metadata__.translations
-                #         else sqlalchemy.LargeBinary,
-                #         field['type']
-                # )
+
                 cls.__metadata__.tables[name]['column_map'][field['name']] = (
                     cls.__metadata__.database.get_translated_column_type(foreign_key_type),
                     field['type']
@@ -138,12 +183,6 @@ class DataBaseModel(BaseModel):
                 )
                 continue
 
-            # cls.__metadata__.tables[name]['column_map'][field['name']] = (
-            #     cls.__metadata__.translations[field['type']] 
-            #     if field['type'] in cls.__metadata__.translations else sqlalchemy.LargeBinary,
-            #     field['type']
-            # )
-
             cls.__metadata__.tables[name]['column_map'][field['name']] = (
                 cls.__metadata__.database.get_translated_column_type(field['type']),
                 field['type']
@@ -157,7 +196,7 @@ class DataBaseModel(BaseModel):
                         *column_type_config['args'], 
                         **column_type_config['kwargs']
                     ),
-                    primary_key = (i == 0)
+                    primary_key = field['name'] == primary_key
                 )
             )
         return columns
@@ -323,17 +362,25 @@ class DataBaseModel(BaseModel):
                     continue 
 
                 if cls.__metadata__.tables[cls.__name__]['column_map'][sel][0]['column_type'] == sqlalchemy.LargeBinary:
-                    values[sel] = loads(result[value])
+                    try:
+                        values[sel] = loads(result[value])
+                    except AttributeError as e:
+                        resolve_missing_attribute(
+                            str(repr(e))
+                        )
+                        values[sel] = loads(result[value])
+                    #breakpoint()
                     continue
 
                 values[sel] = result[value]
 
                 if sel in alias:
                     values[alias[sel]] = values.pop(sel)
-            #breakpoint()
-            decoded_results.append(
-                cls(**values)
-            )
+            
+            if values:
+                decoded_results.append(
+                    cls(**values)
+                )
 
         return decoded_results
     @classmethod
@@ -397,10 +444,6 @@ class DataBaseModel(BaseModel):
         table = self.__metadata__.tables[self.__class__.__name__]['table']
         for column in to_update.copy():
             if column in self.__metadata__.tables[table_name]['foreign_keys']:
-                # foreign_model = getattr(self, column)
-                # foreign_pk = self.__metadata__.tables[foreign_model.__class__.__name__]['primary_key']
-                # foreign_pk_value = getattr(foreign_model, foreign_pk)
-
                 del to_update[column] # = foreign_pk_value
                 continue
             if column not in table.c:
@@ -418,7 +461,8 @@ class DataBaseModel(BaseModel):
         table_name = self.__class__.__name__
         table = self.__metadata__.tables[table_name]['table']
         primary_key = self.__metadata__.tables[table_name]['primary_key']
-        query = table.delete(table).where(table.c[primary_key]==getattr(self, primary_key))
+
+        query, _ = self.where(table.delete(table), {primary_key: getattr(self, primary_key)})
 
         return await self.__metadata__.database.execute(query, None)
     
@@ -449,7 +493,7 @@ class DataBaseModel(BaseModel):
 
 
 class TableMeta(DataBaseModel):
-    table_name: str
+    table_name: str = PrimaryKey(default=uuid.uuid4)
     model: dict
     columns: list
 
