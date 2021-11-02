@@ -2,40 +2,42 @@ import time
 import asyncio
 import sqlalchemy
 import uuid
-from random import randint
+from copy import deepcopy
 from pickle import dumps
 from typing import List
-
+from pydantic import ValidationError
 from databases import Database as _Database
 from pydbantic.core import DataBaseModel, TableMeta, DatabaseInit
-from pydbantic.cache import Cache, Redis
+from pydbantic.cache import Redis
 from pydbantic.translations import DEFAULT_TRANSLATIONS
 
 import logging
 
 class Database():
     def __init__(self,
-        database: _Database,
+        db_url: str,
         tables: list,
         cache_enabled: bool = False,
         redis_url: str = None,
         logger: logging.Logger = None,
         debug: bool = False,
+        testing: bool = False
     ):
-        self.database = database
+        self.DB_URL = db_url
         self.tables = []
         self.cache_enabled = cache_enabled
-        if 'sqlite' in str(self.database.url).lower():
+        if 'sqlite' in self.DB_URL.lower():
             self.db_type = 'SQLITE'
-        elif 'postgres' in str(self.database.url).lower():
+        elif 'postgres' in self.DB_URL.lower():
             self.db_type = 'POSTGRES'
-        elif 'mysql' in str(self.database.url).lower(): 
+        elif 'mysql' in self.DB_URL.lower(): 
             self.db_type = 'MYSQL'
  
+        self.testing = testing
         self.engine = sqlalchemy.create_engine(
-            str(self.database.url),
+            self.DB_URL,
             connect_args={'check_same_thread': False}
-            if 'sqlite' in str(self.database.url) else {}
+            if 'sqlite' in str(self.DB_URL) else {}
         )
         self.DEFAULT_TRANSLATIONS = DEFAULT_TRANSLATIONS
 
@@ -98,7 +100,8 @@ class Database():
             }
             table_fields_list.append(table_fields[field.name])
         
-        
+        table_fields['primary_key'] = table.__metadata__.tables[table.__name__]['primary_key']
+
         table_meta = self.TableMeta(
             table_name=table.__name__, 
             model=table_fields, 
@@ -109,6 +112,7 @@ class Database():
             await table_meta.insert()
         else:
             await table_meta.update()
+
     def add_table(self, table: DataBaseModel):
         
         if not table in self.tables:
@@ -144,11 +148,11 @@ class Database():
         reservation = str(uuid.uuid4())
 
         # checkout database for migrations
-        database_init = await DatabaseInit.get(database_url=str(self.database.url))
+        database_init = await DatabaseInit.get(database_url=self.DB_URL)
 
         if not database_init:
             database_init = DatabaseInit(
-                database_url=str(self.database.url),
+                database_url=self.DB_URL,
                 reservation=reservation
             )
         else:
@@ -157,7 +161,7 @@ class Database():
         try:
             await database_init.save()
             await asyncio.sleep(3)
-            check = await DatabaseInit.get(database_url=str(self.database.url))
+            check = await DatabaseInit.get(database_url=self.DB_URL)
             if check.reservation == reservation:
                 check.status='starting'
                 await check.save()
@@ -169,9 +173,22 @@ class Database():
             while database_init.status != 'ready':
                 self.log.warning(f"waiting for database migration to complete - status {database_init}")
                 await asyncio.sleep(5)
-                database_init = await DatabaseInit.get(database_url=str(self.database.url))
+                database_init = await DatabaseInit.get(database_url=self.DB_URL)
 
         # get list of all tables in table_metadata table
+        if self.testing:
+            if self.TableMeta:
+                TableMeta.__metadata__.tables[TableMeta.__name__]['table'].drop()
+                self.metadata.remove(TableMeta.__metadata__.tables[TableMeta.__name__]['table'])
+                TableMeta.__metadata__.tables[TableMeta.__name__]['table'].create(self.engine)
+
+            for table in self.tables:
+                table.__metadata__.tables[table.__name__]['table'].drop()
+                self.metadata.remove(table.__metadata__.tables[table.__name__]['table'])
+                table.__metadata__.tables[table.__name__]['table'].create(self.engine)
+            if self.cache_enabled:
+                await self.cache.redis.flushdb()
+
 
         _meta_tables = await self.TableMeta.select('*')
 
@@ -191,9 +208,9 @@ class Database():
                     table.__metadata__.tables[table.__name__]['table'] = table_ref
                 continue
 
+            existing_model = meta_tables[table.__name__].model
             # check for new columns
             for field in table.__fields__:
-                existing_model = meta_tables[table.__name__].model
                 if not field in existing_model:
                     is_migration_required = True
                     
@@ -204,8 +221,21 @@ class Database():
                     migration_blame.append(f"Modified Column: {field}")
                     is_migration_required = True
 
+                
+            table_p_key = table.__metadata__.tables[table.__name__]['primary_key']
+            if (table_p_key != existing_model['primary_key'] and
+                existing_model['primary_key'] in table.__fields__
+            ):
+                # Primary Key changed but previous key column still exists
+                migration_blame.append(
+                    f"Primary Key Changed from {existing_model['primary_key']} to {table_p_key}"
+                )
+                is_migration_required = True
+
             # check for deleted columns
             for field in meta_tables[table.__name__].model:
+                if field == 'primary_key': 
+                    continue
                 if not field in table.__fields__:
                     is_migration_required = True
                     migration_blame.append(f"Deleted Column: {field}")
@@ -261,13 +291,12 @@ class Database():
                 if c in table.__fields__ or c in aliases.values()
             ]
 
-            
-            rows = await table.select(*to_select, alias={v: k for k,v in aliases.items()})
+            migration_rows = await table.select(*to_select, alias={v: k for k,v in aliases.items()})
 
             insert_into_migration = migration_table.insert()
 
             values = []
-            for row in rows:
+            for row in migration_rows:
                 row_data = {}
                 for k,v in row.dict().items():
                     row_data[k] = v
@@ -287,6 +316,8 @@ class Database():
                 await self.execute(insert_into_migration, query_values)
         
             # drop existing table
+            old_config = deepcopy(table.__metadata__.tables[table.__name__])
+            old_table = old_config['table']
             table.__metadata__.tables[table.__name__]['table'].drop()
             self.metadata.remove(table.__metadata__.tables[table.__name__]['table'])
 
@@ -300,12 +331,75 @@ class Database():
             new_table.create(self.engine)
 
             # load new table with old data, feeding from table+timestamp & default value of new row(s)
-            rows = await table.select(*to_select, alias={v: k for k,v in aliases.items()})
+            try:
+                rows = await table.select(*to_select, alias={v: k for k,v in aliases.items()})
+            except ValidationError as e:
+                self.log.exception(
+                    (f"Failed to migrate table {table.__name__} from old_schema \n"
+                    f"Consider annotating non-required fields with Optional[], set a default "
+                    f"value for new fields or use factory method via Default(default=<callable>) \n\n"
+                    f"Old Row data is accessible in {migration_table.fullname}"
+                    )
+                )
+                
+                raise e
             table.__metadata__.tables[table.__name__]['table'] = new_table
             
-            for row in rows:
-                await row.insert()
-            
+            try:
+                for row in rows:
+                    await row.insert()
+            except Exception as e:
+                self.log.exception(
+                    (f"Failed to migrate row {row} from old schema to {table.__name__} \n"
+                    f"Consider annotating non-required fields with Optional[], set a default "
+                    f"value or use factory method via Default(default=<callable>) \n\n"
+                    f"Rolling back from {migration_table.fullname} to {table.__name__}"
+                    )
+                )
+                # triggr rollback
+                new_table.drop()
+                self.metadata.remove(new_table)
+
+                # get old columns from TableMeta 
+                _meta_tables = await self.TableMeta.select('*')
+                meta_tables = {table.table_name: table for table in _meta_tables}
+                
+                rollback_table = sqlalchemy.Table(
+                    table.__name__,
+                    self.metadata,
+                    *meta_tables[table.__name__].columns
+                )
+                
+                rollback_table.create(self.engine)
+                
+                # using existing rows that originally built
+                # previous migration table
+                rollback_rows = migration_rows
+
+                insert_into_rollback = rollback_table.insert()
+                
+                values = []
+                for row in rollback_rows:
+                    row_data = {}
+                    for k,v in row.dict().items():
+                        row_data[k] = v
+                        if k in aliases:
+                            row_data[aliases[k]] = row_data.pop(k)
+                            continue
+                        if not k in rollback_table.c:
+                            del row_data[k]
+                        
+                    values.append(
+                        row.serialize(row_data)
+                    )
+
+                values = await asyncio.gather(*values)
+                
+                for query_values in values:
+                    await self.execute(insert_into_rollback, query_values)
+                
+                raise e
+                
             # update TableMeta with new Model
             await self.update_table_meta(table, existing=True)
 
@@ -325,16 +419,24 @@ class Database():
         """
         if self.cache_enabled:
             await self.cache.invalidate(query.table.name)
-
+        
         self.log.debug(f"database query: {query} - values {values}")
-        return await self.database.execute(query=query, values=values)
+        if self.connection:
+            return await self.connection.execute(query=query, values=values)
+            
+        async with self:
+            return await self.connection.execute(query=query, values=values)
 
     async def execute_many(self, query, values):
         """execute bulk insert"""
         if self.cache_enabled:
             await self.cache.invalidate(query.table.name)
 
-        return await self.database.execute(query=query, values=values)
+        if self.connection:
+            return await self.connection.execute(query=query, values=values)
+            
+        async with self:
+            return await self.connection.execute(query=query, values=values)
     
     async def fetch(self, query, table_name, values=None):
         """get a row from table matching query or pull from cache if enabled
@@ -348,7 +450,11 @@ class Database():
                 return cached_row
 
         self.log.debug(f"running query: {query} with {values}")
-        row = await self.database.fetch_all(query=query)
+        if self.connection:
+            row = await self.connection.fetch_all(query=query)
+        else:
+            async with self:
+                row = await self.connection.fetch_all(query=query)
 
         if self.cache_enabled and row:
             # add to database cache with table name flag
@@ -363,22 +469,43 @@ class Database():
         redis_url: str = None,
         logger: logging.Logger = None,
         debug: bool = False,
+        testing: bool = False
     ):
-        database = _Database(DB_URL)
-        await database.connect()
 
         cache_config = {'cache_enabled': cache_enabled}
         if redis_url and cache_enabled:
             cache_config['redis_url'] = redis_url
 
-        easy_db = cls(
-            database,
+        new_db = cls(
+            DB_URL,
             tables,
             logger=logger,
             debug=debug,
+            testing=testing,
             **cache_config
         )
+
+        async with new_db:
+            await new_db.compare_tables_and_migrate()
         
-        await easy_db.compare_tables_and_migrate()
+        return new_db
+
+    async def db_connection(self):
+        async with _Database(self.DB_URL) as connection:
+            self.log.debug(f"db connection - started")
+            yield connection
+        self.log.debug(f"db connection - released")
+
+    async def __aenter__(self):
+        self._db_connection = self.db_connection()
+        self.connection = await self._db_connection.asend(None)
+        return self.connection
+
+    async def __aexit__(self, exc_type, exc, tb):
+        try:
+            await self._db_connection.asend(None)
+        except StopAsyncIteration:
+            pass
+        self.connection = None
         
-        return easy_db
+        
