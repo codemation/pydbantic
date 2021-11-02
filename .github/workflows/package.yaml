@@ -12,7 +12,7 @@ jobs:
     #container: joshjamison/python38:latest
     strategy:
       matrix:
-        python-version: [3.7,3.8,3.9]
+        python-version: [3.7, 3.8, 3.9]
 
     # Service containers to run with `container-job`
     services:
@@ -22,7 +22,7 @@ jobs:
         image: redis
         # Provide the password for postgres
         ports:
-        - 6379:6379
+          - 6379:6379
       postgres:
         # Docker Hub image
         image: postgres
@@ -31,7 +31,7 @@ jobs:
           POSTGRES_PASSWORD: abcd1234
           POSTGRES_DB: database
         ports:
-        - 5432:5432
+          - 5432:5432
 
         # Set health checks to wait until postgres has started
         options: >-
@@ -50,7 +50,7 @@ jobs:
           MYSQL_ROOT_PASSWORD: abcd1234
           MYSQL_DATABASE: database
         ports:
-        - 3306:3306
+          - 3306:3306
 
     steps:
       - name: Set up Python ${{ matrix.python-version }}
@@ -79,8 +79,8 @@ jobs:
             pytest tests/test_querying.py;
             pytest tests/test_query_no_caching.py;
             pytest tests/test_integration_fastapi.py;
-            pytest tests/migrations/test_model_migration_0.py;
-            pytest tests/migrations/test_model_migration_1.py;
-            pytest tests/migrations/test_model_migration_2.py;
-            pytest tests/migrations/test_model_migration_3.py;
+            for mig_test in {0..7}; do 
+              pytest tests/migrations/test_model_migration_$mig_test.py;
+            done
+            pytest tests/test_model_connections.py
           done

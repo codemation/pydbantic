@@ -105,6 +105,7 @@ Here we will add a new field to our existing `Employee` model which is also a `D
 ```python
 ## models.py
 from enum import Enum
+from pydbantic import DataBaseModel, PrimaryKey
 
 class PositionNames(str, Enum):
     manager: str = 'manager'
@@ -113,13 +114,13 @@ class PositionNames(str, Enum):
 
 
 class Positions(DataBaseModel):
-    id: str
+    id: str = PrimaryKey()
     name: PositionNames
 
 
 ## Adding Positions to Employee
 class Employee(DataBaseModel):
-    id: str
+    id: str = PrimaryKey()
     employee_info: EmployeeInfo
     position: Positions = Position(id='p123', name='engineer')
     salary: float
