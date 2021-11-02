@@ -413,7 +413,13 @@ class DataBaseModel(BaseModel):
                     continue 
 
                 if cls.__metadata__.tables[cls.__name__]['column_map'][sel][0]['column_type'] == sqlalchemy.LargeBinary:
-                    values[sel] = loads(result[value])
+                    try:
+                        values[sel] = loads(result[value])
+                    except AttributeError as e:
+                        resolve_missing_attribute(
+                            str(repr(e))
+                        )
+                        values[sel] = loads(result[value])
                     continue
                 values[sel] = result[value]
             try:
@@ -493,12 +499,12 @@ class DataBaseModel(BaseModel):
 
 
 class TableMeta(DataBaseModel):
-    table_name: str = PrimaryKey(default=uuid.uuid4)
+    table_name: str = PrimaryKey()
     model: dict
     columns: list
 
 class DatabaseInit(DataBaseModel):
-    database_url: str
+    database_url: str = PrimaryKey()
     status: Optional[str]
     reservation: Optional[str]
 
