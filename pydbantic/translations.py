@@ -29,12 +29,17 @@ DEFAULT_TRANSLATIONS = {
         },
         list: {
             "column_type": sqlalchemy.LargeBinary,
-            "args": [],
+            "args": [1024],
             "kwargs": {}
         },
         tuple: {
             "column_type": sqlalchemy.LargeBinary,
             "args": [],
+            "kwargs": {}
+        },
+        "default_primary": {
+            "column_type": sqlalchemy.BINARY,
+            "args": [255],
             "kwargs": {}
         },
         "default": {
