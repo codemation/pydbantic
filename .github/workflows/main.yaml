@@ -1,9 +1,7 @@
 name: Unit and Integration Tests
 on: ["pull_request"]
 jobs:
-  # Label of the container job
-  test-postgres-mysql-sqlite:
-    # Containers must run in Linux based operating systems
+  test-postgres:
     runs-on: ubuntu-latest
     # Docker Hub image that `container-job` executes in
     #container: joshjamison/python38:latest
@@ -11,7 +9,6 @@ jobs:
       matrix:
         python-version: [3.7, 3.8, 3.9]
 
-    # Service containers to run with `container-job`
     services:
       # Label used to access the service container
       redis:
@@ -36,36 +33,10 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
-      mysql:
-        # Docker Hub image
-        image: mysql
-        # Provide the password for postgres
-        env:
-          MYSQL_USER: josh
-          MYSQL_PASSWORD: abcd1234
-          MYSQL_ROOT_PASSWORD: abcd1234
-          MYSQL_DATABASE: database
-        ports:
-          - 3306:3306
-
     steps:
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python-version }}
-      # Downloads a copy of the code in your repository before running CI tests
-      - name: Check out repository code
-        uses: actions/checkout@v2
-
-      - name: Install dependencies
+      - name: Run Tests - postgres
         run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install -r requirements-test.txt
-      - name: Run Tests - Sqlite
-        run: |
-          for env in sqlite; do
+          for env in postgres; do
             export ENV=$env; 
             pytest tests/test_database.py;
             pytest tests/test_model_insertions.py;
@@ -81,7 +52,42 @@ jobs:
             done
             pytest tests/test_model_connections.py
           done
-
+  test-mysql:
+    # Containers must run in Linux based operating systems
+    runs-on: ubuntu-latest
+    # Docker Hub image that `container-job` executes in
+    #container: joshjamison/python38:latest
+    strategy:
+      matrix:
+        python-version: [3.7, 3.8, 3.9]
+    # Service containers to run with `container-job`
+    services:
+      # Label used to access the service container
+      redis:
+        # Docker Hub image
+        image: redis
+        # Provide the password for postgres
+        ports:
+          - 6379:6379
+      mysql:
+        # Docker Hub image
+        image: mysql
+        # Provide the password for postgres
+        env:
+          MYSQL_USER: josh
+          MYSQL_PASSWORD: abcd1234
+          MYSQL_ROOT_PASSWORD: abcd1234
+          MYSQL_DATABASE: database
+        ports:
+          - 3306:3306
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      # Downloads a copy of the code in your repository before running CI tests
+      - name: Check out repository code
+        uses: actions/checkout@v2
       - name: Run Tests - mysql
         run: |
           for env in mysql; do
@@ -100,9 +106,43 @@ jobs:
             done
             pytest tests/test_model_connections.py
           done
-      - name: Run Tests - postgres
+
+  # Label of the container job
+  test-sqlite:
+    # Containers must run in Linux based operating systems
+    runs-on: ubuntu-latest
+    # Docker Hub image that `container-job` executes in
+    #container: joshjamison/python38:latest
+    strategy:
+      matrix:
+        python-version: [3.7, 3.8, 3.9]
+
+    # Service containers to run with `container-job`
+    services:
+      # Label used to access the service container
+      redis:
+        # Docker Hub image
+        image: redis
+        # Provide the password for postgres
+        ports:
+          - 6379:6379
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      # Downloads a copy of the code in your repository before running CI tests
+      - name: Check out repository code
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
         run: |
-          for env in postgres; do
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -r requirements-test.txt
+      - name: Run Tests - Sqlite
+        run: |
+          for env in sqlite; do
             export ENV=$env; 
             pytest tests/test_database.py;
             pytest tests/test_model_insertions.py;
