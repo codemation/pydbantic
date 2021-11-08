@@ -162,8 +162,9 @@ class DataBaseModel(BaseModel):
 
 
                 cls.__metadata__.tables[name]['column_map'][field['name']] = (
-                    cls.__metadata__.database.get_translated_column_type(foreign_key_type),
-                    field['type']
+                    cls.__metadata__.database.get_translated_column_type(foreign_key_type)[0],
+                    field['type'],
+                    False
                 )
 
                 # store field name in map to quickly determine attribute is tied to 
@@ -183,9 +184,16 @@ class DataBaseModel(BaseModel):
                 )
                 continue
 
+            # get sqlalchemy column type based on field type & if primary_key
+            # as well as determine if data should be serialized & de-serialized
+            sqlalchemy_model, serialize = cls.__metadata__.database.get_translated_column_type(
+                field['type'],
+                primary_key = field['name'] == primary_key
+            )
             cls.__metadata__.tables[name]['column_map'][field['name']] = (
-                cls.__metadata__.database.get_translated_column_type(field['type']),
-                field['type']
+                sqlalchemy_model,
+                field['type'],
+                serialize
             )
 
             column_type_config = cls.__metadata__.tables[name]['column_map'][field['name']][0]
@@ -199,6 +207,7 @@ class DataBaseModel(BaseModel):
                     primary_key = field['name'] == primary_key
                 )
             )
+        
         return columns
     
     @classmethod
@@ -236,8 +245,10 @@ class DataBaseModel(BaseModel):
                         
                         await foreign_model.insert()
                 continue
+            
+            serialize = self.__metadata__.tables[name]['column_map'][k][2]
 
-            if self.__metadata__.tables[name]['column_map'][k][0]['column_type'] is sqlalchemy.LargeBinary:
+            if serialize:
                 values[k] = dumps(getattr(self, k))
                 continue
             values[k] = v
@@ -268,8 +279,12 @@ class DataBaseModel(BaseModel):
             if not cond in table.c:
                 raise Exception(f"{cond} is not a valid column in {table}")
             query_value = value
-            if cls.__metadata__.tables[cls.__name__]['column_map'][cond][0]['column_type'] is sqlalchemy.LargeBinary:
+            
+            serialized = cls.__metadata__.tables[cls.__name__]['column_map'][cond][2]
+
+            if serialized:
                 query_value = dumps(value)
+
             conditions.append(table.c[cond] == query_value)
             values.append(query_value)
         for condition in conditions:
@@ -361,7 +376,8 @@ class DataBaseModel(BaseModel):
                     values[sel] = values[sel][0] if values[sel] else None
                     continue 
 
-                if cls.__metadata__.tables[cls.__name__]['column_map'][sel][0]['column_type'] == sqlalchemy.LargeBinary:
+                serialized = cls.__metadata__.tables[cls.__name__]['column_map'][sel][2]
+                if serialized:
                     try:
                         values[sel] = loads(result[value])
                     except AttributeError as e:
@@ -369,7 +385,7 @@ class DataBaseModel(BaseModel):
                             str(repr(e))
                         )
                         values[sel] = loads(result[value])
-                    #breakpoint()
+                    
                     continue
 
                 values[sel] = result[value]
@@ -411,8 +427,9 @@ class DataBaseModel(BaseModel):
                     )
                     values[sel] =  values[sel][0]
                     continue 
-
-                if cls.__metadata__.tables[cls.__name__]['column_map'][sel][0]['column_type'] == sqlalchemy.LargeBinary:
+                
+                serialized = cls.__metadata__.tables[cls.__name__]['column_map'][sel][2]
+                if serialized:
                     try:
                         values[sel] = loads(result[value])
                     except AttributeError as e:
