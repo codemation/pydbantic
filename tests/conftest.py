@@ -279,6 +279,7 @@ def new_model_4():
     yield Data
     with open('example_sub.py', 'w') as e:
         e.write(f"""
+# {time.time()}
 import uuid
 from pydantic import BaseModel
 
@@ -296,7 +297,6 @@ class SubData(BaseModel):
 from pydbantic import DataBaseModel, PrimaryKey, Default
 from example_sub import get_uuid, SubData
 
-from example_sub import SubData
 class Data(DataBaseModel):
     a: int
     b_new: float
