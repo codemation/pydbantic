@@ -63,9 +63,46 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install -r requirements-test.txt
-      - name: Run Tests
+      - name: Run Tests - Sqlite
         run: |
-          for env in sqlite mysql postgres; do
+          for env in sqlite; do
+            export ENV=$env; 
+            pytest tests/test_database.py;
+            pytest tests/test_model_insertions.py;
+            pytest tests/test_model_updates.py;
+            pytest tests/test_model_deletions.py;
+            pytest tests/test_models.py;
+            pytest tests/test_query_caching.py;
+            pytest tests/test_querying.py;
+            pytest tests/test_query_no_caching.py;
+            pytest tests/test_integration_fastapi.py;
+            for mig_test in {0..7}; do 
+              pytest tests/migrations/test_model_migration_$mig_test.py;
+            done
+            pytest tests/test_model_connections.py
+          done
+
+      - name: Run Tests - mysql
+        run: |
+          for env in mysql; do
+            export ENV=$env; 
+            pytest tests/test_database.py;
+            pytest tests/test_model_insertions.py;
+            pytest tests/test_model_updates.py;
+            pytest tests/test_model_deletions.py;
+            pytest tests/test_models.py;
+            pytest tests/test_query_caching.py;
+            pytest tests/test_querying.py;
+            pytest tests/test_query_no_caching.py;
+            pytest tests/test_integration_fastapi.py;
+            for mig_test in {0..7}; do 
+              pytest tests/migrations/test_model_migration_$mig_test.py;
+            done
+            pytest tests/test_model_connections.py
+          done
+      - name: Run Tests - postgres
+        run: |
+          for env in postgres; do
             export ENV=$env; 
             pytest tests/test_database.py;
             pytest tests/test_model_insertions.py;
