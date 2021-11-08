@@ -10,8 +10,9 @@ async def test_model_migrations_4_new(new_model_3, db_url):
         db = await Database.create(
             db_url,
             tables=[Data],
-            cache_enabled=False
+            cache_enabled=False,
+            debug=True
         )
-        assert False, f"Migration should have failed due to primary key YNIQUE constraint failed: Data.d"
-    except Exception:
+        assert False, f"Migration should have failed due to primary key UNIQUE constraint failed: Data.d"
+    except Exception as e:
         assert True
