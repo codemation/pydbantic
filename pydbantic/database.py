@@ -67,13 +67,25 @@ class Database():
 
         self.metadata.create_all(self.engine)
 
-    def get_translated_column_type(self, input_type):
+    def get_translated_column_type(self, input_type, primary_key: bool = False):
+        """
+        returns appropiate sqlalchemy.TYPE based on input_type, and indicate
+        data should be serialized if sqlalchemy.LargeBinary is used
+        """
         if input_type in self.DEFAULT_TRANSLATIONS[self.db_type]:
             column_config = self.DEFAULT_TRANSLATIONS[self.db_type][input_type]
         else:
             column_config = self.DEFAULT_TRANSLATIONS[self.db_type]['default']
+        
+        if (
+            self.db_type == 'MYSQL' and 
+            column_config['column_type'] is sqlalchemy.LargeBinary and
+            primary_key
+        ):
+            return self.DEFAULT_TRANSLATIONS[self.db_type]['default_primary'], True
 
-        return column_config
+        # 
+        return column_config, column_config['column_type'] == sqlalchemy.LargeBinary
 
     def setup_logger(self, logger=None, level=None):
         if logger:
@@ -213,7 +225,6 @@ class Database():
             for field in table.__fields__:
                 if not field in existing_model:
                     is_migration_required = True
-                    
                     migration_blame.append(f"New Column: {field}")
                     continue
 
@@ -223,13 +234,14 @@ class Database():
 
                 
             table_p_key = table.__metadata__.tables[table.__name__]['primary_key']
-            if (table_p_key != existing_model['primary_key'] and
+            if existing_model.get('primary_key') and (table_p_key != existing_model['primary_key'] and
                 existing_model['primary_key'] in table.__fields__
             ):
                 # Primary Key changed but previous key column still exists
                 migration_blame.append(
                     f"Primary Key Changed from {existing_model['primary_key']} to {table_p_key}"
                 )
+                
                 is_migration_required = True
 
             # check for deleted columns
