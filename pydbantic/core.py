@@ -71,7 +71,7 @@ class DataBaseModel(BaseModel):
         if not hasattr(cls.__metadata__, 'metadata'):
             cls.init_set_metadata(database.metadata)
             cls.init_set_database(database)
-        if not cls.__name__ in cls.__metadata__.tables:
+        if cls.__name__ not in cls.__metadata__.tables:
             cls.generate_sqlalchemy_table()
         
     @classmethod
@@ -113,7 +113,6 @@ class DataBaseModel(BaseModel):
         """
         if not alias:
             alias = {}
-        
         if not include:
             include = [f for f in cls.__fields__]
 
@@ -138,8 +137,8 @@ class DataBaseModel(BaseModel):
 
         name = cls.__name__
         primary_key = model_fields[0]['name'] if not primary_key else primary_key
-        if not name in cls.__metadata__.tables or update:
-            
+        if name not in cls.__metadata__.tables or update:
+
             cls.__metadata__.tables[name] = {
                 'primary_key': primary_key,
                 'column_map': {},
@@ -207,7 +206,7 @@ class DataBaseModel(BaseModel):
                     primary_key = field['name'] == primary_key
                 )
             )
-        
+
         return columns
     
     @classmethod
@@ -276,10 +275,10 @@ class DataBaseModel(BaseModel):
                 foreign_primary_key = cls.__metadata__.tables[value.__class__.__name__]['primary_key']
                 conditions.append(table.c[foreign_column_name]==getattr(value, foreign_primary_key))
                 continue
-            if not cond in table.c:
+            if cond not in table.c:
                 raise Exception(f"{cond} is not a valid column in {table}")
             query_value = value
-            
+
             serialized = cls.__metadata__.tables[cls.__name__]['column_map'][cond][2]
 
             if serialized:
@@ -293,7 +292,7 @@ class DataBaseModel(BaseModel):
 
     @classmethod
     def get_table(cls):
-        if not cls.__name__ in cls.__metadata__.tables:
+        if cls.__name__ not in cls.__metadata__.tables:
             cls.generate_sqlalchemy_table()
 
         return cls.__metadata__.tables[cls.__name__]['table']
@@ -307,10 +306,10 @@ class DataBaseModel(BaseModel):
         primary_key = cls.__metadata__.tables[cls.__name__]['primary_key']
 
         for k in column_values:
-            if not k in table.c:
+            if k not in table.c:
                 raise Exception(f"{k} is not a valid column in  {table} ")
-        
-        
+
+
         sel = select([table.c[primary_key]])
 
         sel, values = cls.where(sel, column_values)
@@ -319,9 +318,7 @@ class DataBaseModel(BaseModel):
 
         results = await database.fetch(sel, cls.__name__, values)
 
-        if results:
-            return True
-        return False
+        return bool(results)
         
     @classmethod
     async def select(cls,
@@ -460,7 +457,7 @@ class DataBaseModel(BaseModel):
             to_update = self.dict()
             del to_update[primary_key]
 
-        where_ = dict(*where if where else {})
+        where_ = dict(*where or {})
         if not where_:
             where_ = {primary_key: getattr(self, primary_key)}
 
@@ -471,10 +468,10 @@ class DataBaseModel(BaseModel):
                 continue
             if column not in table.c:
                 raise Exception(f"{column} is not a valid column in {table}")
-        
+
         query, _ = self.where(table.update(), where_)
         query = query.values(**to_update)
-        
+
         to_update = await self.serialize(to_update)
 
         await self.__metadata__.database.execute(query, to_update)
@@ -503,7 +500,7 @@ class DataBaseModel(BaseModel):
     async def get(cls, **p_key):
         for k in p_key:
             primary_key = cls.__metadata__.tables[cls.__name__]['primary_key']
-            if not k == cls.__metadata__.tables[cls.__name__]['primary_key']:
+            if k != cls.__metadata__.tables[cls.__name__]['primary_key']:
                 raise f"Expected primary key {primary_key}=<value>"
         result = await cls.select('*', where={**p_key})
         return result[0] if result else None
