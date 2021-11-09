@@ -4,9 +4,7 @@ on:
     branches:
       - main
 jobs:
-  # Label of the container job
-  test-postgres-mysql-sqlite:
-    # Containers must run in Linux based operating systems
+  test-postgres:
     runs-on: ubuntu-latest
     # Docker Hub image that `container-job` executes in
     #container: joshjamison/python38:latest
@@ -14,7 +12,6 @@ jobs:
       matrix:
         python-version: [3.7, 3.8, 3.9]
 
-    # Service containers to run with `container-job`
     services:
       # Label used to access the service container
       redis:
@@ -39,7 +36,53 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Check out repository code
+        uses: actions/checkout@v2
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -r requirements-test.txt
+      - name: Run Tests - postgres
+        run: |
+          for env in postgres; do
+            export ENV=$env; 
+            pytest tests/test_database.py;
+            pytest tests/test_model_insertions.py;
+            pytest tests/test_model_updates.py;
+            pytest tests/test_model_deletions.py;
+            pytest tests/test_models.py;
+            pytest tests/test_query_caching.py;
+            pytest tests/test_querying.py;
+            pytest tests/test_query_no_caching.py;
+            pytest tests/test_integration_fastapi.py;
+            for mig_test in {0..7}; do 
+              pytest tests/migrations/test_model_migration_$mig_test.py;
+            done
+            pytest tests/test_model_connections.py
+          done
+  test-mysql:
+    # Containers must run in Linux based operating systems
+    runs-on: ubuntu-latest
+    # Docker Hub image that `container-job` executes in
+    #container: joshjamison/python38:latest
+    strategy:
+      matrix:
+        python-version: [3.7, 3.8, 3.9]
+    # Service containers to run with `container-job`
+    services:
+      # Label used to access the service container
+      redis:
+        # Docker Hub image
+        image: redis
+        # Provide the password for postgres
+        ports:
+          - 6379:6379
       mysql:
         # Docker Hub image
         image: mysql
@@ -51,7 +94,57 @@ jobs:
           MYSQL_DATABASE: database
         ports:
           - 3306:3306
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      # Downloads a copy of the code in your repository before running CI tests
+      - name: Check out repository code
+        uses: actions/checkout@v2
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -r requirements-test.txt
+      - name: Run Tests - mysql
+        run: |
+          for env in mysql; do
+            export ENV=$env; 
+            pytest tests/test_database.py;
+            pytest tests/test_model_insertions.py;
+            pytest tests/test_model_updates.py;
+            pytest tests/test_model_deletions.py;
+            pytest tests/test_models.py;
+            pytest tests/test_query_caching.py;
+            pytest tests/test_querying.py;
+            pytest tests/test_query_no_caching.py;
+            pytest tests/test_integration_fastapi.py;
+            for mig_test in {0..7}; do 
+              pytest tests/migrations/test_model_migration_$mig_test.py;
+            done
+            pytest tests/test_model_connections.py
+          done
 
+  # Label of the container job
+  test-sqlite:
+    # Containers must run in Linux based operating systems
+    runs-on: ubuntu-latest
+    # Docker Hub image that `container-job` executes in
+    #container: joshjamison/python38:latest
+    strategy:
+      matrix:
+        python-version: [3.7, 3.8, 3.9]
+
+    # Service containers to run with `container-job`
+    services:
+      # Label used to access the service container
+      redis:
+        # Docker Hub image
+        image: redis
+        # Provide the password for postgres
+        ports:
+          - 6379:6379
     steps:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
@@ -66,9 +159,9 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install -r requirements-test.txt
-      - name: Run Tests
+      - name: Run Tests - Sqlite
         run: |
-          for env in sqlite mysql postgres; do
+          for env in sqlite; do
             export ENV=$env; 
             pytest tests/test_database.py;
             pytest tests/test_model_insertions.py;

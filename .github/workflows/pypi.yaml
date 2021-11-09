@@ -11,6 +11,8 @@ jobs:
       # Downloads a copy of the code in your repository before running CI tests
       - name: Check out repository code
         uses: actions/checkout@v2
+      - name: Set Tag for RELEASE_VERSION
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
@@ -21,7 +23,7 @@ jobs:
 
       - name: Package & Test PyPI Installation
         run: |
-          export NEXT_VERSION=$(pip -qqq download pydbantic && ls pydbantic*.whl | sed 's/-/" "/g' | awk '{print "(" $2 ")"}' |  python nextbuild.py)
+          export NEXT_VERSION=${{ env.RELEASE_VERSION }}
           sed -i 's/NEXT_VERSION/'$NEXT_VERSION'/g' setup.py
           python setup.py bdist_wheel
           export PYQL_PACKAGE=$(pwd)/dist/pydbantic-$NEXT_VERSION-py3-none-any.whl
@@ -31,5 +33,5 @@ jobs:
         env: # Or as an environment variable
           PYPI: ${{ secrets.PYPI }}
         run: |
-          export NEXT_VERSION=$(pip -qqq download pydbantic && ls pydbantic*.whl | sed 's/-/" "/g' | awk '{print "(" $2 ")"}' |  python nextbuild.py) 
+          export NEXT_VERSION=${{ env.RELEASE_VERSION }}
           python -m twine upload $(pwd)/dist/pydbantic-$NEXT_VERSION-py3-none-any.whl -u codemation -p $PYPI
