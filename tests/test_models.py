@@ -10,8 +10,8 @@ async def test_models(database_with_cache):
     result = await Employees.select('*')
 
     # no data is expected yet
-    assert len(result) == 0, f"no data is expected yet"
-    
+    assert len(result) == 0, 'no data is expected yet'
+
     new_employee = {
         'id': 'abcd1632173531.8840718', 
         'employee_info': {
@@ -42,8 +42,8 @@ async def test_models(database_with_cache):
     await employee.insert()
 
     result = await Employees.select('*')
-    
-    assert len(result) == 1, f"expected a single entry"
+
+    assert len(result) == 1, 'expected a single entry'
 
     # verify data in result matches original example
     assert result[0].id == employee.id

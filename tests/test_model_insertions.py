@@ -24,7 +24,7 @@ async def test_model_insertions(loaded_database_and_model):
 
     assert  all_employees[-2] == await Employees.get(id=all_employees[-2].id)
 
-    # test unique 
+    # test unique
     try:
         await Employees.create(
             **all_employees[-1].dict()
@@ -32,7 +32,10 @@ async def test_model_insertions(loaded_database_and_model):
     except Exception:
         pass
     else:
-        assert False, f"expected IntegrityError due to duplicate primary key insert attempts"
+        assert (
+            False
+        ), 'expected IntegrityError due to duplicate primary key insert attempts'
+
 
     data = all_employees[-1].dict()
     data['id'] = 'special'
