@@ -8,7 +8,8 @@ async def test_database(db_url):
     db = await Database.create(
         db_url,
         tables=[Employee],
-        cache_enabled=True
+        cache_enabled=False,
+        testing=True
     )
     sel = await db.TableMeta.select('*')
 
@@ -80,4 +81,3 @@ async def test_database(db_url):
     Employee.__metadata__.tables['Employee']['table'].drop()
     
     db.metadata.drop_all()
-    await db.cache.redis.flushdb()

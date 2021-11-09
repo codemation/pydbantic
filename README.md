@@ -26,21 +26,21 @@ $ pip install pydbantic[postgres]
 ```python
 from typing import List, Optional
 from pydantic import BaseModel, Field
-from pydbantic import DataBaseModel
+from pydbantic import DataBaseModel, PrimaryKey
 
 class Department(DataBaseModel):
-    id: str 
+    id: str = PrimaryKey()
     name: str
     company: str
     is_sensitive: bool = False
 
 class Positions(DataBaseModel):
-    id: str
+    id: str = PrimaryKey()
     name: str
     department: Department
 
 class EmployeeInfo(DataBaseModel):
-    ssn: str
+    ssn: str = PrimaryKey()
     first_name: str
     last_name: str
     address: str
@@ -49,7 +49,7 @@ class EmployeeInfo(DataBaseModel):
     zip: Optional[int]
 
 class Employee(DataBaseModel):
-    id: str
+    id: str = PrimaryKey()
     employee_info: EmployeeInfo
     position: Positions
     salary: float
@@ -185,11 +185,11 @@ Save results in a new row created in `Employee` table as well as the related `Em
 `pydbantic` most basic object is a `DataBaseModel`. This object may be comprised of almost any `pickle-able` python object, though you are encouraged to stay within the type-validation land by using `pydantic`'s `BaseModels` and validators.
 
 ### Primary Keys
-`DataBaseModel` 's also have a priamry key, which is the first item defined in a model.
+`DataBaseModel` 's also have a priamry key, which is the first item defined in a model or marked with `= PrimaryKey()`
 
 ```python
 class NotesBm(DataBaseModel):
-    id: str              # required - primary key
+    id: str = PrimaryKey()
     text: Optional[str]  # optional
     data: DataModel      # required 
     coridinates: tuple   # required
@@ -207,7 +207,7 @@ class NotesBm(DataBaseModel):
 Input datatypes without a natural / built in serialization path are serialized using `pickle` and stored as bytes. More on this later. 
 
 ## Migrations
-`pydbantic` handles migrations automatically in response to detected model changes: `New Field`, `Removed Field`, `Modified Field`, `Renamed Field` 
+`pydbantic` handles migrations automatically in response to detected model changes: `New Field`, `Removed Field`, `Modified Field`, `Renamed Field`, `Primary Key Changes`
 
 ### Renaming an exiting column
 Speical consideration is needed when renaming a field in a `DataBaseModel`, extra metadata `__renamed__` is needed to ensure existing data is migrated:
@@ -217,7 +217,7 @@ Speical consideration is needed when renaming a field in a `DataBaseModel`, extr
 
 class EmployeeInfo(DataBaseModel):
     __renamed__= [{'old_name': 'first_name', 'new_name': 'first_names'}]
-    ssn: str
+    ssn: str = PrimaryKey()
     first_names: str
     last_name: str
     address: str

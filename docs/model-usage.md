@@ -6,21 +6,21 @@
 ```python
 from typing import List, Optional
 from pydantic import BaseModel, Field
-from pydbantic import DataBaseModel
+from pydbantic import DataBaseModel, PrimaryKey
 
 class Department(DataBaseModel):
-    id: str 
+    id: str = PrimaryKey()
     name: str
     company: str
     is_sensitive: bool = False
 
 class Positions(DataBaseModel):
-    id: str
+    id: str = PrimaryKey()
     name: str
     department: Department
 
 class EmployeeInfo(DataBaseModel):
-    ssn: str
+    ssn: str = PrimaryKey()
     first_name: str
     last_name: str
     address: str
@@ -29,7 +29,7 @@ class EmployeeInfo(DataBaseModel):
     zip: Optional[int]
 
 class Employee(DataBaseModel):
-    id: str
+    id: str = PrimaryKey()
     employee_info: EmployeeInfo
     position: Positions
     salary: float

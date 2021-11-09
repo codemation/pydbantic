@@ -1,6 +1,6 @@
 from typing import List, Optional
 from pydantic import BaseModel, Field
-from pydbantic import DataBaseModel
+from pydbantic import DataBaseModel, PrimaryKey, Default
 
 class Department(DataBaseModel):
     id: str 
@@ -14,7 +14,7 @@ class Positions(DataBaseModel):
     department: Department
 
 class EmployeeInfo(DataBaseModel):
-    __renamed__= [{'old_name': 'first_names', 'new_name': 'first_name'}]
+    #__renamed__= [{'old_name': 'first_name', 'new_name': 'first_names'}]
     ssn: str
     first_name: str
     last_name: str
@@ -22,10 +22,11 @@ class EmployeeInfo(DataBaseModel):
     address2: Optional[str]
     city: Optional[str]
     zip: Optional[int]
+    new: Optional[str]
 
 class Employee(DataBaseModel):
-    id: str
-    employee_info: EmployeeInfo
+    id: str = PrimaryKey()
+    employee_info: EmployeeInfo 
     position: Positions
     salary: float
     is_employed: bool

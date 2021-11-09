@@ -5,12 +5,14 @@ import os
 import uvloop
 import json
 import asyncio
+import sqlalchemy
 from typing import List, Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
 from pydbantic import DataBaseModel, Database
+from pydbantic.cache import Redis
 from tests.models import Employee
 
 
@@ -36,11 +38,10 @@ async def empty_database_and_model_no_cache(request):
     db = await Database.create(
         request.param,
         tables=[Employee],
-        cache_enabled=False
+        cache_enabled=False,
+        testing=True
     )
     yield db, Employee
-    Employee.__metadata__.tables['Employee']['table'].drop()
-    db.metadata.drop_all()
 
 @pytest.mark.asyncio
 @pytest.fixture(params=[DB_URL])
@@ -49,14 +50,12 @@ async def database_with_cache(request):
     db = await Database.create(
             request.param,  
             tables=[Employee],
-            cache_enabled=True
+            cache_enabled=True,
+            testing=True
         )
 
     yield db, Employee
 
-    Employee.__metadata__.tables['Employee']['table'].drop()
-    db.metadata.drop_all()
-    await db.cache.redis.flushdb()
     await db.cache.redis.close()
 
 @pytest.fixture()
@@ -64,15 +63,15 @@ async def empty_database_and_model_with_cache(database_with_cache):
 
     db = database_with_cache
 
-    #await db.cache.redis.flushdb()
     yield db, Employee
 
 @pytest.mark.asyncio
 @pytest.fixture()
 async def loaded_database_and_model(database_with_cache):
-    db = database_with_cache
-    for _ in range(200):
-        employee = Employee(**json.loads(
+    db, Employee = database_with_cache
+    async with db:
+        for _ in range(200):
+            employee = Employee(**json.loads(
         f"""
   {{
     "id": "abcd{time.time()}",
@@ -100,8 +99,7 @@ async def loaded_database_and_model(database_with_cache):
     "date_employed": null
   }}""")
     )
-
-        await employee.insert()
+            await employee.insert()
 
     yield db, Employee
 
@@ -191,6 +189,7 @@ class Data(DataBaseModel):
     a: int
     b: float
     c: str = 'test'
+    i: str
 """)
     from example import Data
     yield Data
@@ -202,6 +201,7 @@ class Data(DataBaseModel):
     b: float
     c: str = 'test'
     d: tuple = (1,2)
+    i: str
 """)
 
 @pytest.fixture()
@@ -216,6 +216,7 @@ class Data(DataBaseModel):
     b: float
     c: str = 'test'
     d: list = [1,2]
+    i: str
 """)
 
 @pytest.fixture()
@@ -231,9 +232,100 @@ class Data(DataBaseModel):
     b_new: float
     c: str = 'test'
     d: list = [1,2]
+    i: str
 """)
     from example import Data
     yield Data
+    with open('example.py', 'w') as e:
+        e.write(f"""
+import uuid
+from pydbantic import DataBaseModel, PrimaryKey, Default
+
+def get_uuid():
+    return str(uuid.uuid4())
+
+class Data(DataBaseModel):
+    a: int
+    b_new: float
+    c: str
+    d: list = PrimaryKey()
+    e: str = Default(default=get_uuid)
+    i: str
+""")
+
+@pytest.fixture()
+def new_model_3():
+    from example import Data
+    yield Data
+    with open('example.py', 'w') as e:
+        e.write(f"""
+import uuid
+from pydbantic import DataBaseModel, PrimaryKey, Default
+
+def get_uuid():
+    return str(uuid.uuid4())
+
+class Data(DataBaseModel):
+    a: int
+    b_new: float
+    c: str
+    d: list
+    e: str = PrimaryKey(default=get_uuid)
+    i: str
+""")
+@pytest.fixture()
+def new_model_4():
+    from example import Data
+    yield Data
+    with open('example_sub.py', 'w') as e:
+        e.write(f"""
+# {time.time()}
+import uuid
+from pydantic import BaseModel
+
+def get_uuid():
+    return str(uuid.uuid4())
+
+class SubData(BaseModel):
+    a: int = 1
+    b: float = 1.0
+
+""")
+    with open('example.py', 'w') as e:
+        e.write(f"""
+
+from pydbantic import DataBaseModel, PrimaryKey, Default
+from example_sub import get_uuid, SubData
+
+class Data(DataBaseModel):
+    a: int
+    b_new: float
+    c: str
+    d: list
+    e: str = PrimaryKey(default=get_uuid)
+    i: str
+    sub: SubData = None
+""")
+@pytest.fixture()
+def new_model_5():
+    from example import Data, SubData
+    yield Data, SubData
+    with open('example_sub.py', 'w') as e:
+        e.write(f"""
+## Nothing to see here
+
+""")
+    with open('example.py', 'w') as e:
+        e.write(f"""
+## Nothing to see here
+""")
+
+@pytest.fixture()
+def new_model_6():
+    from example import Data
+    from example_sub import SubData
+    yield Data, SubData
+
 
 def endpoint_router():
     router = APIRouter()
