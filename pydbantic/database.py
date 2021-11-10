@@ -515,7 +515,8 @@ class Database():
 
     async def __aexit__(self, exc_type, exc, tb):
         try:
-            await self._db_connection.asend(None)
+            if not self._db_connection.ag_running:
+                await self._db_connection.asend(None)
         except StopAsyncIteration:
             pass
         self.connection = None
