@@ -34,7 +34,7 @@ class Department(DataBaseModel):
     company: str
     is_sensitive: bool = False
 
-class Positions(DataBaseModel):
+class Position(DataBaseModel):
     id: str = PrimaryKey()
     name: str
     department: Department
@@ -51,7 +51,7 @@ class EmployeeInfo(DataBaseModel):
 class Employee(DataBaseModel):
     id: str = PrimaryKey()
     employee_info: EmployeeInfo
-    position: Positions
+    position: Position
     salary: float
     is_employed: bool
     date_employed: Optional[str]
@@ -90,7 +90,7 @@ async def main():
     # create department 
     hr_department = Department(
         id='d1234',
-        name='hr'
+        name='hr',
         company='abc-company',
         is_sensitive=True,
     )
