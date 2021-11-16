@@ -1,4 +1,6 @@
-from typing import List, Optional
+from uuid import uuid4
+from datetime import datetime
+from typing import List, Optional, Union
 from pydantic import BaseModel, Field
 from pydbantic import DataBaseModel, PrimaryKey, Default
 
@@ -31,3 +33,17 @@ class Employee(DataBaseModel):
     salary: float
     is_employed: bool
     date_employed: Optional[str]
+
+def time_now():
+    return datetime.now().isoformat()
+def get_uuid4():
+    return str(uuid4())
+
+class Coordinate(DataBaseModel):
+    time: str = PrimaryKey(default=time_now)
+    latitude: float
+    longitude: float
+
+class Journey(DataBaseModel):
+    trip_id: str = PrimaryKey(default=get_uuid4)
+    waypoints: List[Optional[Coordinate]]
