@@ -8,15 +8,15 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 from pydbantic import DataBaseModel, PrimaryKey
 
+class Coordinates(BaseModel):
+
 class Department(DataBaseModel):
-    id: str = PrimaryKey()
-    name: str
+    name: str = PrimaryKey()
     company: str
-    is_sensitive: bool = False
+    location: Optional[str]
 
 class Positions(DataBaseModel):
-    id: str = PrimaryKey()
-    name: str
+    name: str = PrimaryKey()
     department: Department
 
 class EmployeeInfo(DataBaseModel):
