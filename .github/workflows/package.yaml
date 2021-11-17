@@ -54,7 +54,7 @@ jobs:
             pytest tests/test_model_updates.py;
             pytest tests/test_model_deletions.py;
             pytest tests/test_models.py;
-            pytest tests/test_model_advanced;
+            pytest tests/test_model_advanced.py;
             pytest tests/test_query_caching.py;
             pytest tests/test_querying.py;
             pytest tests/test_query_no_caching.py;
@@ -107,7 +107,7 @@ jobs:
             pytest tests/test_model_updates.py;
             pytest tests/test_model_deletions.py;
             pytest tests/test_models.py;
-            pytest tests/test_model_advanced;
+            pytest tests/test_model_advanced.py;
             pytest tests/test_query_caching.py;
             pytest tests/test_querying.py;
             pytest tests/test_query_no_caching.py;
@@ -171,7 +171,7 @@ jobs:
             pytest tests/test_model_updates.py;
             pytest tests/test_model_deletions.py;
             pytest tests/test_models.py;
-            pytest tests/test_model_advanced;
+            pytest tests/test_model_advanced.py;
             pytest tests/test_query_caching.py;
             pytest tests/test_querying.py;
             pytest tests/test_query_no_caching.py;
