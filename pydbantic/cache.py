@@ -23,7 +23,6 @@ class Redis:
         
     async def set(self, cached_key, row_and_flag: tuple):
         row, flag = row_and_flag
-        #breakpoint()
         await asyncio.gather(
             self.redis.set(
                 cached_key, dumps(([dict(r) for r in row], flag))
