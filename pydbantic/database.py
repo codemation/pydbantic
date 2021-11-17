@@ -57,8 +57,8 @@ class Database():
         self.TableMeta = TableMeta
         self.TableMeta.setup(self)
 
-        self.DatbaseInit = DatabaseInit
-        self.DatbaseInit.setup(self)
+        self.DatabaseInit = DatabaseInit
+        self.DatabaseInit.setup(self)
 
         for table in tables:
             self.add_table(table)
