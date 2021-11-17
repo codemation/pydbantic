@@ -1,7 +1,7 @@
 import uuid
 from pydantic import BaseModel, Field
+import typing
 from typing import Optional, Union, List
-from pydantic.typing import is_callable_type
 import sqlalchemy
 from sqlalchemy import select
 from pickle import dumps, loads
@@ -52,6 +52,23 @@ def Default(default=...):
 
 class DataBaseModel(BaseModel):
     __metadata__: BaseMeta = BaseMeta()
+
+    @classmethod
+    def check_if_subtype(cls, field):
+
+        database_model = None
+        if isinstance(field['type'], typing._GenericAlias):
+            breakpoint()
+            for sub in field['type'].__args__:
+                if issubclass(sub, DataBaseModel):
+                    if database_model:
+                        raise Exception(f"Cannot Specify two DataBaseModels in Union[] for {field['name']}")
+                    database_model = sub
+        elif issubclass(field['type'], DataBaseModel):
+            return field['type']
+        return database_model
+            
+        
 
     @classmethod
     async def refresh_models(cls):
@@ -117,11 +134,16 @@ class DataBaseModel(BaseModel):
             include = [f for f in cls.__fields__]
 
         primary_key = None
+        array_fields = set()
+
         for property, config in cls.schema()['properties'].items():
+            
             if 'primary_key' in config:
                 if primary_key:
                     raise Exception(f"Duplicate Primary Key Specified for {cls.__name__}")
                 primary_key = property
+            if 'type' in config and config['type'] == 'array':
+                array_fields.add(property)
 
         if not model_fields:
             model_fields_list = [
@@ -147,23 +169,24 @@ class DataBaseModel(BaseModel):
 
         columns = []
         for i, field in enumerate(model_fields):
-            if issubclass(field['type'], DataBaseModel):
+            data_base_model = cls.check_if_subtype(field)
+            if data_base_model:
                 # ensure DataBaseModel also exists in Database, even if not already
                 # explicity added
-
-                cls.__metadata__.database.add_table(field['type'])
+                cls.__metadata__.database.add_table(data_base_model)
 
                 # create a string or foreign table column to be used to reference 
                 # other table
-                foreign_table_name = field['type'].__name__
-                foreign_primary_key_name = field['type'].__metadata__.tables[foreign_table_name]['primary_key']
-                foreign_key_type = field['type'].__metadata__.tables[foreign_table_name]['column_map'][foreign_primary_key_name][1]
+                foreign_table_name = data_base_model.__name__
+                foreign_primary_key_name = data_base_model.__metadata__.tables[foreign_table_name]['primary_key']
+                foreign_key_type = data_base_model.__metadata__.tables[foreign_table_name]['column_map'][foreign_primary_key_name][1]
 
+                serialize = field['name'] in array_fields
 
                 cls.__metadata__.tables[name]['column_map'][field['name']] = (
                     cls.__metadata__.database.get_translated_column_type(foreign_key_type)[0],
-                    field['type'],
-                    False
+                    data_base_model,
+                    serialize
                 )
 
                 # store field name in map to quickly determine attribute is tied to 
@@ -227,22 +250,33 @@ class DataBaseModel(BaseModel):
         values = {**data}
 
         for k, v in data.items():
+            
             name = self.__class__.__name__
+            serialize = self.__metadata__.tables[name]['column_map'][k][2]
+
             if k in self.__metadata__.tables[name]['foreign_keys']:
 
                 # use the foreign DataBaseModel's primary key / value 
                 foreign_type = self.__metadata__.tables[name]['column_map'][k][1]
                 foreign_primary_key = foreign_type.__metadata__.tables[foreign_type.__name__]['primary_key']
-                foreign_model = foreign_type(**v)
-                foreign_primary_key_value = getattr(foreign_model, foreign_primary_key)
-                values[f'fk_{foreign_type.__name__}_{foreign_primary_key}'.lower()] = foreign_primary_key_value
-                del values[k]
-                if insert:
-                    exists = await foreign_type.exists(**{foreign_primary_key: foreign_primary_key_value})
+                
+                foreign_values = [v] if not isinstance(v, list) else v
+                fk_values = []
 
-                    if not exists:
-                        
-                        await foreign_model.insert()
+                for v in foreign_values:
+                    foreign_model = foreign_type(**v)
+                    foreign_primary_key_value = getattr(foreign_model, foreign_primary_key)
+
+                    fk_values.append(foreign_primary_key_value)
+                    
+                    if insert:
+                        exists = await foreign_type.exists(**{foreign_primary_key: foreign_primary_key_value})
+                        if not exists:
+                            await foreign_model.insert()
+                del values[k]
+
+                values[f'fk_{foreign_type.__name__}_{foreign_primary_key}'.lower()] = fk_values[0] if not serialize else dumps(fk_values)
+
                 continue
             
             serialize = self.__metadata__.tables[name]['column_map'][k][2]
@@ -363,17 +397,28 @@ class DataBaseModel(BaseModel):
         for result in cls.normalize(results):
             values = {}
             for sel, value in zip(selection, result):
+                serialized = cls.__metadata__.tables[cls.__name__]['column_map'][sel][2]
+
                 if sel in cls.__metadata__.tables[cls.__name__]['foreign_keys']:
+
                     foreign_type = cls.__metadata__.tables[cls.__name__]['column_map'][sel][1]
                     foreign_primary_key = foreign_type.__metadata__.tables[foreign_type.__name__]['primary_key']
-                    values[sel] = await foreign_type.select(
-                        '*', 
-                        where={foreign_primary_key: result[value]},
-                    )
+
+                    foreign_primary_key_values = loads(result[value]) if serialized else [result[value]]
+                    values[sel] = []
+                    for foreign_primary_key_value in foreign_primary_key_values:
+                        fk_query_results = await foreign_type.select(
+                            '*', 
+                            where={foreign_primary_key: foreign_primary_key_value},
+                        )
+                        values[sel].extend(fk_query_results)
+                    if serialized:
+                        values[sel] = values[sel]
+                        continue
+
                     values[sel] = values[sel][0] if values[sel] else None
                     continue 
 
-                serialized = cls.__metadata__.tables[cls.__name__]['column_map'][sel][2]
                 if serialized:
                     try:
                         values[sel] = loads(result[value])
@@ -461,18 +506,18 @@ class DataBaseModel(BaseModel):
         if not where_:
             where_ = {primary_key: getattr(self, primary_key)}
 
-        table = self.__metadata__.tables[self.__class__.__name__]['table']
+        table = self.__metadata__.tables[table_name]['table']
         for column in to_update.copy():
             if column in self.__metadata__.tables[table_name]['foreign_keys']:
-                del to_update[column] # = foreign_pk_value
                 continue
             if column not in table.c:
                 raise Exception(f"{column} is not a valid column in {table}")
 
         query, _ = self.where(table.update(), where_)
-        query = query.values(**to_update)
+        
+        to_update = await self.serialize(to_update, insert=True)
 
-        to_update = await self.serialize(to_update)
+        query = query.values(**to_update)
 
         await self.__metadata__.database.execute(query, to_update)
 
