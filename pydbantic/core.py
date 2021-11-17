@@ -183,7 +183,7 @@ class DataBaseModel(BaseModel):
                 serialize = field['name'] in array_fields
 
                 cls.__metadata__.tables[name]['column_map'][field['name']] = (
-                    cls.__metadata__.database.get_translated_column_type(foreign_key_type)[0],
+                    cls.__metadata__.database.get_translated_column_type(foreign_key_type if not serialize else list)[0],
                     data_base_model,
                     serialize
                 )
