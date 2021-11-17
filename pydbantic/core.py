@@ -58,7 +58,6 @@ class DataBaseModel(BaseModel):
 
         database_model = None
         if isinstance(field['type'], typing._GenericAlias):
-            breakpoint()
             for sub in field['type'].__args__:
                 if issubclass(sub, DataBaseModel):
                     if database_model:
@@ -461,16 +460,28 @@ class DataBaseModel(BaseModel):
         for result in cls.normalize(results):
             values = {}
             for sel, value in zip(columns, result):
+                serialized = cls.__metadata__.tables[cls.__name__]['column_map'][sel][2]
+
                 if sel in cls.__metadata__.tables[cls.__name__]['foreign_keys']:
                     foreign_type = cls.__metadata__.tables[cls.__name__]['column_map'][sel][1]
                     foreign_primary_key = foreign_type.__metadata__.tables[foreign_type.__name__]['primary_key']
-                    values[sel] = await foreign_type.select(
-                        '*', where={foreign_primary_key: result[value]}
-                    )
-                    values[sel] =  values[sel][0]
+                    result[value] = loads(result[value]) if serialized else [result[value]]
+
+                    foreign_values = []
+                    for foreign_pkey in result[value]:
+                        foreign_result = await foreign_type.select(
+                            '*', where={foreign_primary_key: foreign_pkey}
+                        )
+                        foreign_values.extend(foreign_result)
+                    
+                    if serialized:
+                        values[sel] = foreign_values
+                        continue
+
+                    values[sel] =  foreign_values[0] if foreign_values else None
                     continue 
                 
-                serialized = cls.__metadata__.tables[cls.__name__]['column_map'][sel][2]
+                
                 if serialized:
                     try:
                         values[sel] = loads(result[value])

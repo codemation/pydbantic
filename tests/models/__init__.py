@@ -28,7 +28,7 @@ class EmployeeInfo(DataBaseModel):
 
 class Employee(DataBaseModel):
     id: str = PrimaryKey()
-    employee_info: EmployeeInfo 
+    employee_info: Optional[EmployeeInfo]
     position: Positions
     salary: float
     is_employed: bool
