@@ -1,19 +1,15 @@
 import os
 import time
 import pytest
+from tests.models import EmployeeInfo
 
 @pytest.mark.asyncio
 async def test_query_without_caching(loaded_database_and_model_no_cache):
     db, Employee = loaded_database_and_model_no_cache
 
-    start = time.time()
     sel = await Employee.select('*')
-    perf = time.time() - start
 
     sel2 = await Employee.select('*')
-    perf2 = time.time() - (start + perf)
-
-    print(f"perf: {perf} perf2: {perf2}")
 
     assert len(sel2) == 200
 
@@ -23,20 +19,19 @@ async def test_query_without_caching(loaded_database_and_model_no_cache):
     Employee.salary = 100000.00
     await Employee.update()
 
-    start = time.time()
     sel3 = await Employee.select('*')
-    perf3 = time.time() - start
-
-    start = time.time()
 
     # should NOT be cached -  yet
     filter_sel = await Employee.filter(salary=0.0)
 
-    perf4 = time.time() - start
-
-    # should be cached - if enabled
     filter_sel2 = await Employee.filter(salary=0.0)
 
-    perf5 = time.time() - (start + perf4)
 
-    print(f"perf4: {perf} perf5: {perf4}")
+    all_emp_info = await EmployeeInfo.all()
+    for info in all_emp_info:
+        await info.delete()
+    
+    all_emps = await Employee.all()
+    filtered_emps = await Employee.filter(salary=all_emps[0].salary)
+
+    assert all_emps[0] == filtered_emps[0]

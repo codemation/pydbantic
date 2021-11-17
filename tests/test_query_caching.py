@@ -1,6 +1,7 @@
 import os
 import time
 import pytest
+from tests.models import EmployeeInfo
 
 @pytest.mark.asyncio
 async def test_query_caching(loaded_database_and_model_with_cache):
@@ -28,25 +29,17 @@ async def test_query_caching(loaded_database_and_model_with_cache):
     employee.salary = 100000.00
     await employee.update()
 
-    start = time.time()
-    sel3 = await Employee.select('*')
-    await Employee.select('*')
-    perf3 = time.time() - start
-
     assert employee == await Employee.get(id=employee.id)
-
-    start = time.time()
 
     # should NOT be cached -  yet
     filter_sel = await Employee.filter(salary=0.0)
     await Employee.filter(salary=0.0)
 
-    perf4 = time.time() - start
+    all_emp_info = await EmployeeInfo.all()
+    for info in all_emp_info:
+        await info.delete()
+    
+    all_emps = await Employee.all()
+    filtered_emps = await Employee.filter(salary=all_emps[0].salary)
 
-    # should be cached - if enabled
-    filter_sel2 = await Employee.filter(salary=0.0)
-    await Employee.filter(salary=0.0)
-
-    perf5 = time.time() - (start + perf4)
-
-    print(f"perf4: {perf} perf5: {perf4}")
+    assert all_emps[0] == filtered_emps[0]
