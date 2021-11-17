@@ -146,3 +146,31 @@ Much like updates, `DataBaseModel` objects can only be deleted by directly calli
 
 !!! WARNING
     Deleted objects which are depended on by other `DataBaseModel` are <u>NOT</u> deleted, as no strict table relationships exist between `DataBaseModel`. This may be changed later. 
+
+
+### Models with arrays of Foreign Objects
+
+`DataBaseModel` models can support arrays of both `BaseModels` and other `DataBaseModel`. Just like single `DataBaseModel` references, data is stored in separate tables, and populated automatically when the child `DataBaseModel` is instantiated.
+
+```python
+from uuid import uuid4
+from datetime import datetime
+from typing import List, Optional
+from pydbantic import DataBaseModel, PrimaryKey
+
+
+def time_now():
+    return datetime.now().isoformat()
+def get_uuid4():
+    return str(uuid4())
+
+class Coordinate(DataBaseModel):
+    time: str = PrimaryKey(default=time_now)
+    latitude: float
+    longitude: float
+
+class Journey(DataBaseModel):
+    trip_id: str = PrimaryKey(default=get_uuid4)
+    waypoints: List[Optional[Coordinate]]
+
+```
