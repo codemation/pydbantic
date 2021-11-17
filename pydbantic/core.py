@@ -57,7 +57,8 @@ class DataBaseModel(BaseModel):
     def check_if_subtype(cls, field):
 
         database_model = None
-        if isinstance(field['type'], typing._UnionGenericAlias):
+        if isinstance(field['type'], typing._GenericAlias):
+            breakpoint()
             for sub in field['type'].__args__:
                 if issubclass(sub, DataBaseModel):
                     if database_model:
