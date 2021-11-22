@@ -202,12 +202,15 @@ class Database():
                 await self.cache.redis.flushdb()
 
 
-        _meta_tables = await self.TableMeta.select('*')
+        meta_tables = {}
 
+        for table in self.tables:
+            table_meta = await self.TableMeta.get(table_name=table.__name__)
+            if table_meta:
+                meta_tables[table_meta.table_name] = table_meta
+    
         # determine list of tables requiring migration
         migrations_required = {}
-
-        meta_tables = {table.table_name: table for table in _meta_tables}
 
         for table in self.tables:
             is_migration_required = False
@@ -373,13 +376,12 @@ class Database():
                 self.metadata.remove(new_table)
 
                 # get old columns from TableMeta 
-                _meta_tables = await self.TableMeta.select('*')
-                meta_tables = {table.table_name: table for table in _meta_tables}
+                meta_table = await self.TableMeta.get(table_name=table.__name__)
                 
                 rollback_table = sqlalchemy.Table(
                     table.__name__,
                     self.metadata,
-                    *meta_tables[table.__name__].columns
+                    *meta_table.columns
                 )
                 
                 rollback_table.create(self.engine)
