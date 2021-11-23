@@ -2,10 +2,8 @@ import time
 import asyncio
 import sqlalchemy
 import uuid
-from collections import Counter
 from copy import deepcopy
 from pickle import dumps
-from typing import List
 from pydantic import ValidationError
 from databases import Database as _Database
 from pydbantic.core import DataBaseModel, TableMeta, DatabaseInit
