@@ -2,6 +2,7 @@ import time
 import asyncio
 import sqlalchemy
 import uuid
+from collections import Counter
 from copy import deepcopy
 from pickle import dumps
 from typing import List
@@ -23,6 +24,7 @@ class Database():
         debug: bool = False,
         testing: bool = False
     ):
+        self.connection_map = {}
         self.DB_URL = db_url
         self.tables = []
         self.cache_enabled = cache_enabled
@@ -424,8 +426,6 @@ class Database():
             database_init.status == 'ready'
             await database_init.update()
             
-
-
     async def execute(self, query, values):
         """execute an insert, update, delete table query &
             invalidates cache for associated table if 
@@ -435,22 +435,17 @@ class Database():
             await self.cache.invalidate(query.table.name)
         
         self.log.debug(f"database query: {query} - values {values}")
-        if self.connection:
-            return await self.connection.execute(query=query, values=values)
             
-        async with self:
-            return await self.connection.execute(query=query, values=values)
+        async with self as conn:
+            return await conn.execute(query=query, values=values)
 
     async def execute_many(self, query, values):
         """execute bulk insert"""
         if self.cache_enabled:
             await self.cache.invalidate(query.table.name)
-
-        if self.connection:
-            return await self.connection.execute(query=query, values=values)
             
-        async with self:
-            return await self.connection.execute(query=query, values=values)
+        async with self as conn:
+            return await conn.execute(query=query, values=values)
     
     async def fetch(self, query, table_name, values=None):
         """get a row from table matching query or pull from cache if enabled
@@ -464,11 +459,9 @@ class Database():
                 return cached_row
 
         self.log.debug(f"running query: {query} with {values}")
-        if self.connection:
-            row = await self.connection.fetch_all(query=query)
-        else:
-            async with self:
-                row = await self.connection.fetch_all(query=query)
+
+        async with self as conn:
+            row = await conn.fetch_all(query=query)
 
         if self.cache_enabled and row:
             # add to database cache with table name flag
@@ -506,21 +499,32 @@ class Database():
 
     async def db_connection(self):
         async with _Database(self.DB_URL) as connection:
-            self.log.debug(f"db connection - started")
-            yield connection
-        self.log.debug(f"db connection - released")
+            while True:
+                status = yield connection
+                if status == 'finished':
+                    self.log.debug(f"db_connection - closed")
+                    break
 
     async def __aenter__(self):
-        self._db_connection = self.db_connection()
-        self.connection = await self._db_connection.asend(None)
-        return self.connection
+        for conn_id in self.connection_map:
+            if self.connection_map[conn_id]['conn'].ag_running:
+                continue
+            self.connection_map[conn_id]['last'] = time.time()
+            return await self.connection_map[conn_id]['conn'].asend(None)
+
+        conn_id = str(uuid.uuid4())
+        db_connection = self.db_connection()
+        self.connection_map[conn_id] = {'conn': db_connection, 'last': time.time()}
+        return await db_connection.asend(None)
+
 
     async def __aexit__(self, exc_type, exc, tb):
-        try:
-            if not self._db_connection.ag_running:
-                await self._db_connection.asend(None)
-        except StopAsyncIteration:
-            pass
-        self.connection = None
-        
+        for conn_id in self.connection_map.copy():
+            if not self.connection_map[conn_id]['conn'].ag_running:
+                if time.time() - self.connection_map[conn_id]['last'] > 120: 
+                    try:
+                        await self.connection_map[conn_id].asend('finished')
+                    except StopAsyncIteration:
+                        pass
+                    del self.connection_map[conn_id]
         
