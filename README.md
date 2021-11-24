@@ -24,6 +24,7 @@ $ pip install pydbantic[postgres]
 ## Basic Usage - Model
 
 ```python
+from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field
 from pydbantic import DataBaseModel, PrimaryKey
@@ -47,6 +48,7 @@ class EmployeeInfo(DataBaseModel):
     address2: Optional[str]
     city: Optional[str]
     zip: Optional[int]
+    arrival_date: datetime = datetime = Default(default=datetime.now)
 
 class Employee(DataBaseModel):
     id: str = PrimaryKey()
