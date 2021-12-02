@@ -9,10 +9,10 @@ import aioredis
 
 class Redis:
     def __init__(self,
-        url: str = "redis://localhost",
+        redis_url: str = "redis://localhost",
         log: logging.Logger = logging.getLogger(__name__)
     ):
-        self.redis = aioredis.from_url(url)
+        self.redis = aioredis.from_url(redis_url)
         self.log = log
 
     async def get(self, key):
