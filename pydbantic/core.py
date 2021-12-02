@@ -364,6 +364,19 @@ class DataBaseModel(BaseModel):
             raise Exception(f"{column} is not a valid column in {table}")
         return table.c[column].contains(value)
 
+    @classmethod
+    def desc(cls, column):
+        table = cls.get_table()
+        if not column in table.c:
+            raise Exception(f"{column} is not a valid column in {table}")
+        return table.c[column].desc()
+
+    @classmethod
+    def asc(cls, column):
+        table = cls.get_table()
+        if not column in table.c:
+            raise Exception(f"{column} is not a valid column in {table}")
+        return table.c[column].asc()
     
     @classmethod
     async def exists(cls,
@@ -394,7 +407,8 @@ class DataBaseModel(BaseModel):
         where: Optional[Union[dict, None]] = None,
         alias: Optional[dict] = None,
         limit: Optional[int] = None,
-        offset: Optional[int] = 0
+        offset: Optional[int] = 0,
+        order_by = None, 
     ) -> List[dict]:
         if alias is None:
             alias = {}
@@ -425,6 +439,9 @@ class DataBaseModel(BaseModel):
             sel, values = cls.where(sel, where)
 
         sel, values = cls.check_limit_offset(sel, values, limit, offset)
+
+        if order_by is not None:
+            sel = sel.order_by(order_by)
 
         decoded_results = []
 
@@ -497,19 +514,32 @@ class DataBaseModel(BaseModel):
 
         return query, values
 
-
     @classmethod
-    async def all(cls, limit: int = None, offset: int = 0):
+    async def all(
+        cls, 
+        limit: int = None, 
+        offset: int = 0,
+        order_by = None
+    ):
         parameters = {}
         if limit:
             parameters['limit'] = limit
         if offset:
             parameters['offset'] = offset
+        if order_by is not None:
+            parameters['order_by'] = order_by
 
         return await cls.select('*', **parameters)
 
     @classmethod
-    async def filter(cls, *conditions, limit: int = None, offset: int = 0, **column_filters):
+    async def filter(
+        cls, 
+        *conditions, 
+        limit: int = None, 
+        offset: int = 0,
+        order_by = None, 
+        **column_filters
+    ):
         table = cls.get_table()
         columns = [k for k in cls.__fields__]
         if not column_filters and not conditions:
@@ -519,6 +549,9 @@ class DataBaseModel(BaseModel):
         sel, values = cls.where(sel, column_filters, *conditions)
 
         sel, values = cls.check_limit_offset(sel, values, limit, offset)
+
+        if not order_by is None:
+            sel = sel.order_by(order_by)
 
         database = cls.__metadata__.database
 
@@ -644,4 +677,3 @@ class DatabaseInit(DataBaseModel):
     database_url: str = PrimaryKey()
     status: Optional[str]
     reservation: Optional[str]
-
