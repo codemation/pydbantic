@@ -2,12 +2,12 @@
 Redis can be enabled for use with Pydbantic by simply passing in a redis URL string into `Database.create()` such as `redis://localhost`
 
 ```python
-    database = await Database.create(
-            sqlite:///company.db,  
-            tables=[Employee],
-            cache_enabled=True,
-            redis_url='redis://localhost'
-        )
+database = await Database.create(
+        sqlite:///company.db,  
+        tables=[Employee],
+        cache_enabled=True,
+        redis_url='redis://localhost'
+    )
 ```
 
 ### Considerations

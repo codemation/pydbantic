@@ -6,6 +6,7 @@ nav:
   - Pydbantic: index.md
   - Setup: setup.md
   - Quick Start: quick-start.md
+  - Tutorials: tutorials.md
   - Model Usage: model-usage.md
   - Database Usage: database-usage.md
   - Redis: redis-usage.md
