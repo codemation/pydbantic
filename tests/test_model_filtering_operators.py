@@ -40,3 +40,21 @@ async def test_model_filtering_operators(loaded_database_and_model):
     )
     assert len(employees_starting_with_jo) == 200
 
+
+    employees_with_salary = await Employees.filter(
+        Employees.gt('salary', 0),
+        order_by=Employees.asc('salary')
+    )
+    for i, employee in enumerate(employees_with_salary):
+        if i == 0:
+            continue
+        assert employees_with_salary[i].salary > employees_with_salary[i-1].salary
+
+    employees_with_salary = await Employees.filter(
+        Employees.gt('salary', 0),
+        order_by=Employees.desc('salary')
+    )
+    for i, employee in enumerate(employees_with_salary):
+        if i == 0:
+            continue
+        assert employees_with_salary[i].salary < employees_with_salary[i-1].salary
