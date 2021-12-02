@@ -70,16 +70,16 @@ async def empty_database_and_model_with_cache(database_with_cache):
 async def loaded_database_and_model(database_with_cache):
     db, Employee = database_with_cache
     async with db:
-        for _ in range(200):
+        for i in range(200):
             employee = Employee(**json.loads(
         f"""
   {{
     "id": "abcd{time.time()}",
     "employee_info": {{
-      "ssn": "1234",
+      "ssn": "{i}",
       "first_name": "joe",
       "last_name": "last",
-      "address": "123 lane",
+      "address": "{i} lane",
       "address2": null,
       "city": null,
       "zip": null

@@ -1,12 +1,9 @@
-import uuid
 from pydantic import BaseModel, Field
 import typing
 from typing import Optional, Union, List
 import sqlalchemy
 from sqlalchemy import select
 from pickle import dumps, loads
-
-from pydbantic import database
 
 class _Generic(BaseModel):
     pass
@@ -48,6 +45,7 @@ def Default(default=...):
     if isinstance(default, type(lambda x: x)):
         return Field(default_factory=default)
     return Field(default=default)
+
 
 
 class DataBaseModel(BaseModel):
@@ -297,9 +295,10 @@ class DataBaseModel(BaseModel):
         return await self.update()
 
     @classmethod
-    def where(cls, query, where: dict):
+    def where(cls, query, where: dict, *conditions):
         table = cls.get_table()
-        conditions = []
+        conditions = list(conditions)
+
         values = []
         for cond, value in where.items():
             # check if cond is a foreign key, handle pulling foreign references matching query
@@ -329,7 +328,43 @@ class DataBaseModel(BaseModel):
             cls.generate_sqlalchemy_table()
 
         return cls.__metadata__.tables[cls.__name__]['table']
+    
+    @classmethod
+    def gt(cls, column, value):
+        table = cls.get_table()
+        if not column in table.c:
+            raise Exception(f"{column} is not a valid column in {table}")
+        return table.c[column] > value
 
+    @classmethod
+    def gte(cls, column, value):
+        table = cls.get_table()
+        if not column in table.c:
+            raise Exception(f"{column} is not a valid column in {table}")
+        return table.c[column] >= value
+
+    @classmethod
+    def lt(cls, column, value):
+        table = cls.get_table()
+        if not column in table.c:
+            raise Exception(f"{column} is not a valid column in {table}")
+        return table.c[column] < value
+
+    @classmethod
+    def lte(cls, column, value):
+        table = cls.get_table()
+        if not column in table.c:
+            raise Exception(f"{column} is not a valid column in {table}")
+        return table.c[column] <= value
+
+    @classmethod
+    def contains(cls, column, value):
+        table = cls.get_table()
+        if not column in table.c:
+            raise Exception(f"{column} is not a valid column in {table}")
+        return table.c[column].contains(value)
+
+    
     @classmethod
     async def exists(cls,
         **column_values: dict
@@ -358,6 +393,8 @@ class DataBaseModel(BaseModel):
         *selection,
         where: Optional[Union[dict, None]] = None,
         alias: Optional[dict] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = 0
     ) -> List[dict]:
         if alias is None:
             alias = {}
@@ -382,10 +419,12 @@ class DataBaseModel(BaseModel):
             items_to_select.append(table.c[column_name])
         #
         sel = select(items_to_select)
-        #
+
         values = None
         if where:
             sel, values = cls.where(sel, where)
+
+        sel, values = cls.check_limit_offset(sel, values, limit, offset)
 
         decoded_results = []
 
@@ -440,19 +479,47 @@ class DataBaseModel(BaseModel):
                 )
 
         return decoded_results
-    @classmethod
-    async def all(cls):
-        return await cls.select('*')
 
     @classmethod
-    async def filter(cls, **column_filters):
+    def check_limit_offset(cls, query, values, limit, offset):
+        values = list(values) if values else []
+
+        if limit:
+            query = query.limit(limit)
+
+        if offset:
+            query = query.offset(offset)
+        
+        if not values:
+            values = [limit, offset]
+        elif values and (limit or offset):
+            values.extend([limit, offset])
+
+        return query, values
+
+
+    @classmethod
+    async def all(cls, limit: int = None, offset: int = 0):
+        parameters = {}
+        if limit:
+            parameters['limit'] = limit
+        if offset:
+            parameters['offset'] = offset
+
+        return await cls.select('*', **parameters)
+
+    @classmethod
+    async def filter(cls, *conditions, limit: int = None, offset: int = 0, **column_filters):
         table = cls.get_table()
         columns = [k for k in cls.__fields__]
-        if not column_filters:
-            raise Exception(f"{cls.__name__}.filter() expects keyword arguments for columns: {columns}")
+        if not column_filters and not conditions:
+            raise Exception(f"{cls.__name__}.filter() expects keyword arguments for columns: {columns} or conditions")
         sel = table.select()
 
-        sel, values = cls.where(sel, column_filters)
+        sel, values = cls.where(sel, column_filters, *conditions)
+
+        sel, values = cls.check_limit_offset(sel, values, limit, offset)
+
         database = cls.__metadata__.database
 
         results = await database.fetch(sel, cls.__name__, values)
