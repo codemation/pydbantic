@@ -56,6 +56,8 @@ jobs:
             pytest tests/test_models.py;
             pytest tests/test_model_advanced.py;
             pytest tests/test_query_caching.py;
+            pytest tests/test_model_filtering_operators.py;
+            pytest tests/test_model_limit_offset.py;
             pytest tests/test_querying.py;
             pytest tests/test_query_no_caching.py;
             pytest tests/test_integration_fastapi.py;
@@ -109,6 +111,8 @@ jobs:
             pytest tests/test_models.py;
             pytest tests/test_model_advanced.py;
             pytest tests/test_query_caching.py;
+            pytest tests/test_model_filtering_operators.py;
+            pytest tests/test_model_limit_offset.py;
             pytest tests/test_querying.py;
             pytest tests/test_query_no_caching.py;
             pytest tests/test_integration_fastapi.py;
@@ -173,6 +177,8 @@ jobs:
             pytest tests/test_models.py;
             pytest tests/test_model_advanced.py;
             pytest tests/test_query_caching.py;
+            pytest tests/test_model_filtering_operators.py;
+            pytest tests/test_model_limit_offset.py;
             pytest tests/test_querying.py;
             pytest tests/test_query_no_caching.py;
             pytest tests/test_integration_fastapi.py;
