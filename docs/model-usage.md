@@ -118,6 +118,18 @@ employees_starting_with_jo = await EmployeeInfo.filter(
     EmployeeInfo.contains('first_name', 'jo')
 )
 
+# sort employees with salary - highest salary first
+employees_with_salary = await Employees.filter(
+    Employees.gt('salary', 0),
+    order_by=Employees.asc('salary')
+)
+
+# sort employees with salary - lowest salary first
+employees_with_salary = await Employees.filter(
+    Employees.gt('salary', 0),
+    order_by=Employees.desc('salary')
+)
+
 ```
 
 #### Get - Primary Key
