@@ -169,7 +169,17 @@ latest_employees = await Employees.filter(
     offset=175
 )
 ```
+#### Counting
+`DataBaseModel` objects can be counted by calling the `.count()` method. Filtered `DataBaseModel` objects can use `.filter(.., count_rows=True)` to return a total count of objects matching a given filter.
 
+```python
+employee_count = await Employees.count()
+
+employed_count = await Employees.filter(
+      is_employed=True,
+      count_rows=True
+)
+```
 
 ### Model Usage - Updating
 Updates to `DataBaseModel` objects must be done directly via an object instance, related `DataBaseModel` field objects must be updated by calling the related fields object's `.save()` or `.update()` method. 
