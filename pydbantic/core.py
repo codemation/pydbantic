@@ -1,8 +1,9 @@
+from sqlalchemy.sql.functions import count
 from pydantic import BaseModel, Field
 import typing
 from typing import Optional, Union, List
 import sqlalchemy
-from sqlalchemy import select
+from sqlalchemy import select, func
 from pickle import dumps, loads
 
 class _Generic(BaseModel):
@@ -408,12 +409,13 @@ class DataBaseModel(BaseModel):
         alias: Optional[dict] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = 0,
-        order_by = None, 
+        order_by = None
     ) -> List[dict]:
         if alias is None:
             alias = {}
 
         table = cls.get_table()
+        database = cls.__metadata__.database
 
         if selection[0] == '*':
             selection = [k for k in cls.__metadata__.tables[cls.__name__]['column_map']]
@@ -444,8 +446,6 @@ class DataBaseModel(BaseModel):
             sel = sel.order_by(order_by)
 
         decoded_results = []
-
-        database = cls.__metadata__.database
         
         results = await database.fetch(sel, cls.__name__, values)
 
@@ -532,28 +532,41 @@ class DataBaseModel(BaseModel):
         return await cls.select('*', **parameters)
 
     @classmethod
+    async def count(cls):
+        table = cls.get_table()
+        database = cls.__metadata__.database
+        sel = select([func.count()]).select_from(table)
+        results = await database.fetch(sel, cls.__name__)
+        return results[0][0] if results else 0
+
+    @classmethod
     async def filter(
         cls, 
         *conditions, 
         limit: int = None, 
         offset: int = 0,
         order_by = None, 
+        count_rows: bool = False,
         **column_filters
     ):
         table = cls.get_table()
+        database = cls.__metadata__.database
+
         columns = [k for k in cls.__fields__]
         if not column_filters and not conditions:
             raise Exception(f"{cls.__name__}.filter() expects keyword arguments for columns: {columns} or conditions")
-        sel = table.select()
+        sel = table.select() if not count_rows else select([func.count()]).select_from(table)
 
         sel, values = cls.where(sel, column_filters, *conditions)
 
         sel, values = cls.check_limit_offset(sel, values, limit, offset)
+        
+        if count_rows:
+            row_count = await database.fetch(sel, cls.__name__)
+            return row_count[0][0] if row_count else 0
 
         if not order_by is None:
             sel = sel.order_by(order_by)
-
-        database = cls.__metadata__.database
 
         results = await database.fetch(sel, cls.__name__, values)
         rows = []
