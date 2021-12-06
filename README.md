@@ -133,8 +133,12 @@ Note: At this point only the models have been created, but nothing is saved in t
 ```python
     # get all hr managers currently employed
     managers = await Employee.filter(
-        position=hr_manager,
-        is_employed=True
+        Employee.position==hr_manager, # conditional
+        is_employed=True               # key-word argument
+    )
+
+    first_100_employees = await Employee.all(
+        limit=100
     )
 
 ```
@@ -263,8 +267,5 @@ class Coordinate(DataBaseModel):
 class Journey(DataBaseModel):
     trip_id: str = PrimaryKey(default=get_uuid4)
     waypoints: List[Optional[Coordinate]]
-
-
-
 
 ```
