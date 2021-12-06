@@ -58,3 +58,45 @@ async def test_model_filtering_operators(loaded_database_and_model):
         if i == 0:
             continue
         assert employees_with_salary[i].salary < employees_with_salary[i-1].salary
+
+    mid_salary_employees = await Employees.filter(
+
+        Employees.gte('salary', 30000),
+        Employees.lte('salary', 40000)
+    )
+    assert len(mid_salary_employee) == 2
+
+    mid_salary_employees = await Employees.filter(
+        Employees.salary >= 30000,
+        Employees.salary <= 40000
+    )
+
+    assert len(mid_salary_employee) == 2
+
+    mid_salary_employees = await Employees.filter(
+        Employees.salary.matches([30000, 40000])
+    )
+    
+    assert len(mid_salary_employee) == 2
+
+    mid_salary_employees = await Employees.filter(
+        Employees.salary == 30000,
+    )
+    assert len(mid_salary_employee) == 2
+
+    init_employees = await Employees.filter(
+        Employees.salary >= 30000
+    )
+    second_employees = await Employees.filter(
+        Employees.salary.matches([20000, 40000])
+    )
+
+    mid_salary_employees = await Employees.filter(
+        Employees.OR(
+            Employees.salary >= 30000,
+            Employees.salary.matches([20000, 40000])
+        ),
+        Employees.is_employed == True
+    )
+    
+    assert len(mid_salary_employees) == 4

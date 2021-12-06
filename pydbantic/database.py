@@ -416,8 +416,9 @@ class Database():
                 
             # update TableMeta with new Model
             await self.update_table_meta(table, existing=True)
-
+            
             table.__metadata__.tables[table.__name__]['table'] = new_table
+            table.generate_model_attributes()
 
         if reservation == database_init.reservation:
             self.log.warning(f"database init - ready")

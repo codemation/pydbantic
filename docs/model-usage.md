@@ -94,7 +94,35 @@ managers = await Employee.filter(
 )
 ```
 ##### Filtering - Operators
-`DataBaseModel`s are equipped with operator methods allow a more complete filtering of desired objects:
+`DataBaseModel`s can be filtered using `>`, `>=`, `<=`, `<`, `==`, and a `.matches([value1, value2, value3])` 
+
+```python
+# conditionals
+mid_salary_employees = await Employees.filter(
+    Employees.salary >= 30000,
+    Employees.salary <= 40000
+)
+
+mid_salary_employees = await Employees.filter(
+    Employees.salary.matches([30000, 40000])
+)
+
+mid_salary_employees = await Employees.filter(
+    Employees.salary == 30000,
+)
+
+# combining conditionals with keyword args
+mid_salary_employees = await Employees.filter(
+    Employees.OR(
+        Employees.salary >= 30000,
+        Employees.salary.matches([20000, 40000])
+    ),
+    is_employed = True
+)
+
+```
+
+`DataBaseModel`s are also equipped with operator methods allowing for additional filtering of desired objects
 
 ```python
 # greater than or equal
@@ -186,7 +214,7 @@ Updates to `DataBaseModel` objects must be done directly via an object instance,
 
 
 ```python
-all_employees = await Employees.select('*')
+all_employees = await Employees.all()
 
 # update is_employed to False for all employees
 
@@ -208,7 +236,7 @@ for employee in all_employees:
 Much like updates, `DataBaseModel` objects can only be deleted by directly calling the `.delete()` method of an object instance. 
 
 ```python
-all_employees = await Employees.select('*')
+all_employees = await Employees.all()
 
 # delete latest employee
 await all_employees[-1].delete()

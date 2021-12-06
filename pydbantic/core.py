@@ -1,9 +1,8 @@
-from sqlalchemy.sql.functions import count
 from pydantic import BaseModel, Field
 import typing
-from typing import Optional, Union, List
+from typing import Iterable, Optional, Union, List, Any
 import sqlalchemy
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from pickle import dumps, loads
 
 class _Generic(BaseModel):
@@ -46,8 +45,90 @@ def Default(default=...):
     if isinstance(default, type(lambda x: x)):
         return Field(default_factory=default)
     return Field(default=default)
+class DataBaseModelCondition:
+    def __init__(
+        self, 
+        description: str,
+        condition: sqlalchemy.sql.elements.BinaryExpression,
+        values
+    ): 
+        self.description = description
+        self.condition = condition
+        self.values = values
+    def __repr__(self):
+        return self.description
+    def str(self):
+        return self.description
 
+class DataBaseModelAttribute:
+    def __init__(
+        self, 
+        name: str,
+        column: sqlalchemy.sql.schema.Column,
+        table,
+        serialized: bool = False
+    ):
+        self.name = name
+        self.column = column
+        self.table = table
+        self.serialized = serialized
+    def process_value(self, value):
+        if self.name in self.table['foreign_keys']:
+            foreign_table_name = value.__class__.__name__
+            primary_key = value.__class__.__metadata__.tables[foreign_table_name]['primary_key']
+            return getattr(value, primary_key)
+        if self.serialized:
+            return dumps(value)
 
+        return value
+
+    def __lt__(self, value) -> DataBaseModelCondition:
+        values = self.process_value(value)
+        return DataBaseModelCondition(
+            f"{self.name} < {values}",
+            self.column < self.process_value(value),
+            (values,)
+        )
+
+    def __le__(self, value) -> DataBaseModelCondition:
+        values = self.process_value(value)
+        return DataBaseModelCondition(
+            f"{self.name} <= {values}",
+            self.column <= self.process_value(value),
+            (values,)
+        )
+
+    def __gt__(self, value) -> DataBaseModelCondition:
+        values = self.process_value(value)
+        return DataBaseModelCondition(
+            f"{self.name} > {values}",
+            self.column > self.process_value(value),
+            (values,)
+        )
+
+    def __ge__(self, value) -> DataBaseModelCondition:
+        values = self.process_value(value)
+        return DataBaseModelCondition(
+            f"{self.name} >= {values}",
+            self.column >= self.process_value(value),
+            (values,)
+        )
+
+    def __eq__(self, value) -> DataBaseModelCondition:
+        values = self.process_value(value)
+        return DataBaseModelCondition(
+            f"{self.name} == {values}",
+            self.column == self.process_value(value),
+            (values,)
+        )
+
+    def matches(self, choices: List[Any]) -> DataBaseModelCondition:
+        choices = [self.process_value(value) for value in choices]
+        return DataBaseModelCondition(
+            f"{self.name} in {choices}",
+            self.column.in_(choices),
+            tuple(choices)
+        )
 
 class DataBaseModel(BaseModel):
     __metadata__: BaseMeta = BaseMeta()
@@ -114,6 +195,25 @@ class DataBaseModel(BaseModel):
             cls.__metadata__.metadata,
             *cls.convert_fields_to_columns()
         )
+        cls.generate_model_attributes()
+    @classmethod 
+    def generate_model_attributes(cls):
+        name = cls.__name__
+        for c, column in cls.__metadata__.tables[name]['column_map'].items():
+            sql_c = c
+            if c in cls.__metadata__.tables[name]['foreign_keys']:
+                sql_c = cls.__metadata__.tables[name]['foreign_keys'][c]
+            setattr(
+                cls, 
+                c, 
+                DataBaseModelAttribute(
+                    c,
+                    cls.__metadata__.tables[name]['table'].c[sql_c],
+                    cls.__metadata__.tables[name],
+                    column[2]
+                )
+            )
+
         
     @classmethod
     def convert_fields_to_columns(
@@ -294,33 +394,29 @@ class DataBaseModel(BaseModel):
         if not exists:
             return await self.insert()
         return await self.update()
-
+    
     @classmethod
     def where(cls, query, where: dict, *conditions):
         table = cls.get_table()
         conditions = list(conditions)
 
-        values = []
+        
         for cond, value in where.items():
-            # check if cond is a foreign key, handle pulling foreign references matching query
-            if cond in cls.__metadata__.tables[cls.__name__]['foreign_keys']:
-                foreign_column_name = cls.__metadata__.tables[cls.__name__]['foreign_keys'][cond]
-                foreign_primary_key = cls.__metadata__.tables[value.__class__.__name__]['primary_key']
-                conditions.append(table.c[foreign_column_name]==getattr(value, foreign_primary_key))
-                continue
-            if cond not in table.c:
+            if not isinstance(cond, DataBaseModelAttribute) and  hasattr(cls, cond):
+                cond = getattr(cls, cond)
+            else:
                 raise Exception(f"{cond} is not a valid column in {table}")
+            
+            conditions.append(cond == value)
             query_value = value
-
-            serialized = cls.__metadata__.tables[cls.__name__]['column_map'][cond][2]
-
-            if serialized:
+            if cond.serialized:
                 query_value = dumps(value)
-
-            conditions.append(table.c[cond] == query_value)
-            values.append(query_value)
+        values = []
         for condition in conditions:
-            query = query.where(condition)
+            query = query.where(condition.condition)
+            if isinstance(condition.values, tuple):
+                values.extend(condition.values)
+
         return query, tuple(values)
 
     @classmethod
@@ -329,41 +425,88 @@ class DataBaseModel(BaseModel):
             cls.generate_sqlalchemy_table()
 
         return cls.__metadata__.tables[cls.__name__]['table']
-    
-    @classmethod
-    def gt(cls, column, value):
-        table = cls.get_table()
-        if not column in table.c:
-            raise Exception(f"{column} is not a valid column in {table}")
-        return table.c[column] > value
 
     @classmethod
-    def gte(cls, column, value):
+    def OR(cls, *conditions, **filters) -> DataBaseModelCondition:
         table = cls.get_table()
-        if not column in table.c:
-            raise Exception(f"{column} is not a valid column in {table}")
-        return table.c[column] >= value
+        conditions = list(conditions)
+
+        for cond, value in filters.items():
+            if not isinstance(cond, DataBaseModelAttribute) and  hasattr(cls, cond):
+                cond = getattr(cls, cond)
+            else:
+                raise Exception(f"{cond} is not a valid column in {table}")
+
+            conditions.append(cond == value)
+        values = []
+        for cond in conditions:
+            if isinstance(cond.values, tuple):
+                values.extend(cond.values)
+
+        return DataBaseModelCondition(
+            " OR ".join([str(cond) for cond in conditions]),
+            or_(*[cond.condition for cond in conditions]),
+            values=tuple(values)
+        )
+        
 
     @classmethod
-    def lt(cls, column, value):
+    def gt(cls, column, value) -> DataBaseModelCondition:
         table = cls.get_table()
         if not column in table.c:
             raise Exception(f"{column} is not a valid column in {table}")
-        return table.c[column] < value
+        
+        return DataBaseModelCondition(
+            f"{column} > {value}",
+            table.c[column] > value,
+            value
+        )
 
     @classmethod
-    def lte(cls, column, value):
+    def gte(cls, column, value) -> DataBaseModelCondition:
         table = cls.get_table()
         if not column in table.c:
             raise Exception(f"{column} is not a valid column in {table}")
-        return table.c[column] <= value
+        return DataBaseModelCondition(
+            f"{column} >= {value}",
+            table.c[column] >= value,
+            value
+        )
+        
 
     @classmethod
-    def contains(cls, column, value):
+    def lt(cls, column, value) -> DataBaseModelCondition:
         table = cls.get_table()
         if not column in table.c:
             raise Exception(f"{column} is not a valid column in {table}")
-        return table.c[column].contains(value)
+        return DataBaseModelCondition(
+            f"{column} < {value}",
+            table.c[column] < value,
+            value
+        )
+
+    @classmethod
+    def lte(cls, column, value) -> DataBaseModelCondition:
+        table = cls.get_table()
+        if not column in table.c:
+            raise Exception(f"{column} is not a valid column in {table}")
+        return DataBaseModelCondition(
+            f"{column} <= {value}",
+            table.c[column] >= value,
+            value
+        )
+
+    @classmethod
+    def contains(cls, column, value) -> DataBaseModelCondition:
+        table = cls.get_table()
+        if not column in table.c:
+            raise Exception(f"{column} is not a valid column in {table}")
+
+        return DataBaseModelCondition(
+            f"{value} in {column}",
+            table.c[column].contains(value),
+            value
+        )
 
     @classmethod
     def desc(cls, column):
@@ -568,7 +711,10 @@ class DataBaseModel(BaseModel):
         if not order_by is None:
             sel = sel.order_by(order_by)
 
-        results = await database.fetch(sel, cls.__name__, values)
+        results = await database.fetch(sel, cls.__name__, tuple(values))
+
+        normalized_results = cls.normalize(results)
+
         rows = []
         for result in cls.normalize(results):
             values = {}
@@ -666,12 +812,15 @@ class DataBaseModel(BaseModel):
         )
 
     @classmethod
-    async def get(cls, **p_key):
-        for k in p_key:
-            primary_key = cls.__metadata__.tables[cls.__name__]['primary_key']
-            if k != cls.__metadata__.tables[cls.__name__]['primary_key']:
-                raise f"Expected primary key {primary_key}=<value>"
-        result = await cls.select('*', where={**p_key})
+    async def get(cls, *p_key_condition, **p_key):
+        if not p_key_condition:
+            for k in p_key:
+                primary_key = cls.__metadata__.tables[cls.__name__]['primary_key']
+                if k != cls.__metadata__.tables[cls.__name__]['primary_key']:
+                    raise f"Expected primary key {primary_key}=<value>"
+                p_key_condition = [getattr(cls, primary_key)  == p_key[k]]
+            
+        result = await cls.filter(*p_key_condition)
         return result[0] if result else None
 
     @classmethod
