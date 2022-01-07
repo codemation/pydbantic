@@ -15,4 +15,4 @@ async def test_model_migrations_4_new(new_model_3, db_url):
         )
         assert False, f"Migration should have failed due to primary key UNIQUE constraint failed: Data.d"
     except Exception as e:
-        assert True
+        assert not isinstance(e, AssertionError)

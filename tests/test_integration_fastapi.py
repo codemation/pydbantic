@@ -13,15 +13,13 @@ def test_fastapi_integration(fastapi_app_with_loaded_database):
         current_employees = response.json()
 
         for employee in current_employees:
-            Employee(**employee)
-        
-        # # send new model to api_router
-        # for employee in current_employees:
-        #     new_employee = employee.copy() 
-        #     new_employee['id'] = f'{new_employee["id"]}_new_{time.time()}'
-        #     response = client.post('/employee/create', json=new_employee)
-            
-        #     assert response.status_code == 200
+            del employee['employee_info']['employee']
+            del employee['position'][0]['employees']
+            del employee['position'][0]['department']['positions']
+            try:
+                Employee(**employee)
+            except Exception as e:
+                breakpoint()
         
         response = client.get('/employees')
         assert response.status_code == 200
@@ -31,9 +29,13 @@ def test_fastapi_integration(fastapi_app_with_loaded_database):
         assert len(employees) == 200
 
         for employee in employees:
+            del employee['employee_info']['employee']
+            del employee['position'][0]['employees']
+            del employee['position'][0]['department']['positions']
+
             new_employee = Employee(**employee)
         
-            new_employee.id = f'{employee["id"]}_new_{time.time()}'
+            new_employee.employee_id = f'{employee["employee_id"]}_new_{time.time()}'
             response = client.post('/employee', json=new_employee.dict())
             assert response.status_code == 200
     
@@ -47,9 +49,12 @@ def test_fastapi_integration(fastapi_app_with_loaded_database):
 
         # verify bad input
         for employee in employees:
+            del employee['employee_info']['employee']
+            del employee['position'][0]['employees']
+            del employee['position'][0]['department']['positions']
             Employee(**employee)
         
-            employee['id'] = f'{employee["id"]}_new_{time.time()}'
+            employee['employee_id'] = f'{employee["employee_id"]}_new_{time.time()}'
             employee['is_employed'] = 'not a bool'
             response = client.post('/employee', json=employee)
 

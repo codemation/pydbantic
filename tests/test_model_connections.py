@@ -13,19 +13,15 @@ async def test_model_transactions(loaded_database_and_model):
             await all_employees[-1].delete()
             await all_employees[-2].delete()
 
-            employee = await Employees.create(
-                **all_employees[-1].dict()
-            )
+            employee = await all_employees[-1].insert()
 
             result = await all_employees[-2].save()
 
-    assert  all_employees[-2] == await Employees.get(id=all_employees[-2].id)
+    assert  all_employees[-2] == await Employees.get(employee_id=all_employees[-2].employee_id)
 
     # test unique
     try:
-        await Employees.create(
-            **all_employees[-1].dict()
-        )
+        employee = await all_employees[-1].insert()
     except Exception:
         pass
     else:
@@ -34,15 +30,12 @@ async def test_model_transactions(loaded_database_and_model):
         ), 'expected IntegrityError due to duplicate primary key insert attempts'
 
 
-    data = all_employees[-1].dict()
-    data['id'] = 'special'
-    new_example = Employees(
-        **data
-    )
+    new_employee = all_employees[-1]
+    new_employee.employee_id = 'special'
 
     async with db:
-        await new_example.insert()
+        await new_employee.insert()
 
-        verify_examples = await Employees.filter(id='special')
+        verify_examples = await Employees.filter(employee_id='special')
 
     assert len(verify_examples) == 1

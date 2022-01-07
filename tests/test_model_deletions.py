@@ -21,14 +21,14 @@ async def test_model_deletions(loaded_database_and_model):
 
     assert len(result) == 200
 
-    employee2 = Employees(**employee.dict())
+    employee2 = employee
 
     try:
         await employee2.insert()
     except Exception as e:
         pass
     
-    employee2.id += '_new'
+    employee2.employee_id += '_new'
     await employee2.insert()
 
     result = await Employees.select('*')

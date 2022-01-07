@@ -8,11 +8,11 @@ async def test_querying(loaded_database_and_model_with_cache):
 
     all_employees = await Employee.all()
 
-    assert len(all_employees) == 800
+    assert len(all_employees) == 20
 
-    all_employees[400].salary = 40000
+    all_employees[19].salary = 40000
 
-    await all_employees[400].update()
+    await all_employees[19].update()
 
     # get employee with salary
 
@@ -25,10 +25,10 @@ async def test_querying(loaded_database_and_model_with_cache):
     assert emp_with_salary[0].salary == 40000
 
     manager_position = emp_with_salary[0].position
-
+    #breakpoint()
     # filter on manager positions
     managers = await Employee.filter(
-        position=manager_position, 
+        position=manager_position[0],
         salary=40000, 
         employee_info=emp_with_salary[0].employee_info
     )
@@ -37,7 +37,7 @@ async def test_querying(loaded_database_and_model_with_cache):
 
     # filter on manager positions
     managers = await Employee.filter(
-        Employee.position==manager_position, 
+        Employee.position==manager_position[0], 
         Employee.salary==40000, 
         Employee.employee_info==emp_with_salary[0].employee_info
     )
@@ -47,13 +47,13 @@ async def test_querying(loaded_database_and_model_with_cache):
 
     assert managers[0].employee_info.ssn == emp_with_salary[0].employee_info.ssn
 
-    manager = await Employee.get(id=managers[0].id)
+    manager = await Employee.get(employee_id=managers[0].employee_id)
 
-    assert manager.id == managers[0].id
+    assert manager.employee_id == managers[0].employee_id
 
-    manager = await Employee.get(Employee.id==managers[0].id)
+    manager = await Employee.get(Employee.employee_id==managers[0].employee_id)
 
-    assert manager.id == managers[0].id
+    assert manager.employee_id == managers[0].employee_id
 
     ranged_salary = await Employee.filter(
         Employee.salary.matches([40000, 10000, 30000])

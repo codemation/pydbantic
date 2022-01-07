@@ -1,4 +1,4 @@
-from asyncio.base_events import _run_until_complete_cb
+
 import pytest
 import time
 import os
@@ -13,14 +13,14 @@ from fastapi.testclient import TestClient
 
 from pydbantic import DataBaseModel, Database
 from pydbantic.cache import Redis
-from tests.models import Employee
+from tests.models import Department, Employee, EmployeeInfo, Positions
 
 
 
 
 DB_PATH = {
     'sqlite': 'sqlite:///test.db',
-    'mysql': 'mysql://josh:abcd1234@127.0.0.1/database',
+    'mysql': 'mysql://josh:abcd1234@127.0.0.1/auth-db',
     'postgres': 'postgresql://postgres:abcd1234@localhost/database'
 }
 
@@ -37,7 +37,10 @@ def db_url():
 async def empty_database_and_model_no_cache(request):
     db = await Database.create(
         request.param,
-        tables=[Employee],
+        tables=[Employee, 
+                EmployeeInfo, 
+                Positions,
+                Department],
         cache_enabled=False,
         testing=True
     )
@@ -49,12 +52,18 @@ async def database_with_cache(request):
 
     db = await Database.create(
             request.param,  
-            tables=[Employee],
+            tables=[
+                Employee, 
+                EmployeeInfo, 
+                Positions,
+                Department
+            ],
             cache_enabled=True,
             testing=True
         )
 
     yield db, Employee
+    db.metadata.drop_all()
 
     await db.cache.redis.close()
 
@@ -74,7 +83,7 @@ async def loaded_database_and_model(database_with_cache):
             employee = Employee(**json.loads(
         f"""
   {{
-    "id": "abcd{time.time()}",
+    "employee_id": "abcd{i}",
     "employee_info": {{
       "ssn": "{i}",
       "first_name": "joe",
@@ -84,16 +93,16 @@ async def loaded_database_and_model(database_with_cache):
       "city": null,
       "zip": null
     }},
-    "position": {{
-      "id": "1234",
+    "position": [{{
+      "position_id": "1234",
       "name": "manager",
       "department": {{
-        "id": "5678",
+        "department_id": "5678",
         "name": "hr",
         "company": "abc company",
         "is_sensitive": false
       }}
-    }},
+    }}],
     "salary": 0,
     "is_employed": true,
     "date_employed": null
@@ -107,11 +116,11 @@ async def loaded_database_and_model(database_with_cache):
 @pytest.fixture()
 async def loaded_database_and_model_no_cache(empty_database_and_model_no_cache):
     db = empty_database_and_model_no_cache
-    for _ in range(200):
+    for i in range(200):
         employee = Employee(**json.loads(
         f"""
   {{
-    "id": "abcd{time.time()}",
+    "employee_id": "abcd{i}",
     "employee_info": {{
       "ssn": "1234",
       "first_name": "joe",
@@ -121,16 +130,16 @@ async def loaded_database_and_model_no_cache(empty_database_and_model_no_cache):
       "city": null,
       "zip": null
     }},
-    "position": {{
-      "id": "1234",
+    "position": [{{
+      "position_id": "1234",
       "name": "manager",
       "department": {{
-        "id": "5678",
+        "department_id": "5678",
         "name": "hr",
         "company": "abc company",
         "is_sensitive": false
       }}
-    }},
+    }}],
     "salary": 0,
     "is_employed": true,
     "date_employed": null
@@ -145,13 +154,13 @@ async def loaded_database_and_model_no_cache(empty_database_and_model_no_cache):
 @pytest.fixture()
 async def loaded_database_and_model_with_cache(database_with_cache):
     db = database_with_cache
-    for _ in range(800):
+    for i in range(20):
         employee = Employee(**json.loads(
         f"""
   {{
-    "id": "abcd{time.time()}",
+    "employee_id": "abcd{time.time()}",
     "employee_info": {{
-      "ssn": "1234",
+      "ssn": "{i}1234",
       "first_name": "joe",
       "last_name": "last",
       "address": "123 lane",
@@ -159,16 +168,16 @@ async def loaded_database_and_model_with_cache(database_with_cache):
       "city": null,
       "zip": null
     }},
-    "position": {{
-      "id": "1234",
+    "position": [{{
+      "position_id": "1234",
       "name": "manager",
       "department": {{
-        "id": "5678",
+        "department_id": "5678",
         "name": "hr",
         "company": "abc company",
         "is_sensitive": false
       }}
-    }},
+    }}],
     "salary": 0,
     "is_employed": true,
     "date_employed": null
@@ -348,6 +357,6 @@ async def fastapi_app_with_loaded_database(loaded_database_and_model):
 
     @app.get('/employees')
     async def view_employees():
-        return await Employee.select('*')
+        return await Employee.all()
     
     return app

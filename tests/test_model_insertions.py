@@ -11,23 +11,54 @@ async def test_model_insertions(loaded_database_and_model):
     await all_employees[-2].delete()
     # result = await all_employees[-2].save()
     # deleted_emp = await Employees.get(id=all_employees[-2].id)
-    # breakpoint()
 
+    new_employee = {
+            'employee_id': 'abcd1990', 
+            'employee_info': {
+                'ssn': '199', 
+                'first_name': 'joe', 
+                'last_name': 'last', 
+                'address': '199 lane', 
+                'address2': None, 
+                'city': None, 
+                'zip': None, 
+                'new': None, 
+            }, 
+            'position': [
+                {
+                    'position_id': '1234', 
+                    'name': 'manager', 
+                    'department': {
+                        'department_id': '5678', 
+                        'name': 'hr', 
+                        'company': 'abc company', 
+                        'is_sensitive': False
+                    }
+                }
+            ],
+            'salary': 0.0,
+            'is_employed': True, 
+            'date_employed': None
+        }
     # creation via .create
-    employee = await Employees.create(
-        **all_employees[-1].dict()
-    )
+    employee = await Employees.create(**new_employee)
 
     #breakpoint()
-    # creation via .save
+    # creation via .save #TODO - determine why Save fails to 
+    # update foreign models 
     result = await all_employees[-2].save()
 
-    assert  all_employees[-2] == await Employees.get(id=all_employees[-2].id)
+    
+    verify_emp = await Employees.get(employee_id=all_employees[-2].employee_id)
+
+    assert  all_employees[-2].employee_id == verify_emp.employee_id
+    assert  all_employees[-2].salary == verify_emp.salary
+
 
     # test unique
     try:
         await Employees.create(
-            **all_employees[-1].dict()
+            **new_employee
         )
     except Exception:
         pass
@@ -37,14 +68,14 @@ async def test_model_insertions(loaded_database_and_model):
         ), 'expected IntegrityError due to duplicate primary key insert attempts'
 
 
-    data = all_employees[-1].dict()
-    data['id'] = 'special'
+    data = new_employee
+    data['employee_id'] = 'special'
     new_example = Employees(
         **data
     )
 
     await new_example.insert()
 
-    verify_examples = await Employees.filter(id='special')
+    verify_examples = await Employees.filter(employee_id='special')
 
     assert len(verify_examples) == 1

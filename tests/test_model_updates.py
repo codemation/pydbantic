@@ -1,3 +1,4 @@
+from builtins import breakpoint
 import pytest
 
 @pytest.mark.asyncio
@@ -11,7 +12,7 @@ async def test_model_updates(loaded_database_and_model):
     employee.employee_info.first_name = 'new name - updated'
     await employee.employee_info.update()
 
-    updated_employee = await Employees.select('*', where={'id': employee.id})
+    updated_employee = await Employees.select('*', where={'employee_id': employee.employee_id})
 
     assert updated_employee[0].employee_info.first_name == 'new name - updated'
 
@@ -29,6 +30,6 @@ async def test_model_updates(loaded_database_and_model):
 
     await updated_employee[0].update()
 
-    modified_employee = await Employees.get(id=updated_employee[0].id)
+    modified_employee = await Employees.get(employee_id=updated_employee[0].employee_id)
 
     assert modified_employee.employee_info.ssn == all_employees[1].employee_info.ssn
