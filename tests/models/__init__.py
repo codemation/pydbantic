@@ -1,7 +1,7 @@
 from uuid import uuid4
 from datetime import datetime
 from typing import List, Optional
-from pydbantic import DataBaseModel, PrimaryKey, Default, Relationship
+from pydbantic import DataBaseModel, PrimaryKey
 
 class Department(DataBaseModel):
     department_id: str 
