@@ -1,6 +1,5 @@
 import os
 from builtins import Exception
-from sqlalchemy.sql.expression import except_
 import time
 import asyncio
 import sqlalchemy
@@ -8,8 +7,6 @@ import uuid
 from copy import deepcopy
 from pickle import dumps
 
-from sqlalchemy.engine.interfaces import Dialect
-from sqlalchemy.orm import relationship
 from pydantic import ValidationError
 from databases import Database as _Database
 from pydbantic.core import DataBaseModel, TableMeta, DatabaseInit
@@ -328,11 +325,43 @@ class Database():
 
             old_table_columns = table.convert_fields_to_columns(include=to_select, alias=aliases)
 
-            old_table = sqlalchemy.Table(
-                table.__name__,
-                self.metadata,
-                *old_table_columns[0],
+            to_select = [
+                c for c in meta_tables[table.__name__].model 
+                if (c in table.__fields__ or c in aliases.values())
+            ]
+
+            old_table = None
+            if aliases:
+                self.metadata.remove(table.__metadata__.tables[table.__name__]['table'])
+                
+                old_table = sqlalchemy.Table(
+                    table.__name__,
+                    self.metadata,
+                    *old_table_columns[0],
+                )
+
+                table.__metadata__.tables[table.__name__]['table'] = old_table
+
+        
+            migration_rows = await table.select(
+                *to_select, 
+                alias={v: k for k,v in aliases.items()},
+                primary_key=meta_tables[table.__name__].model['primary_key'],
+                backward_refs=False
             )
+
+            # if table linked with relationship, drop link table
+            for rel, rel_table in table.__metadata__.tables[table.__name__]['relationships'].items():
+                self.log.warning(f"dropping related link-table {rel_table[0].name}")
+                rel_table[0].drop(self.engine)
+                self.metadata.remove(rel_table[0])
+                
+            if old_table is None:
+                old_table = sqlalchemy.Table(
+                    table.__name__,
+                    self.metadata,
+                    *old_table_columns[0],
+                )
 
             table.__metadata__.tables[table.__name__]['table'] = old_table
 
@@ -348,17 +377,6 @@ class Database():
             # selecting only previously existing columns &&
             # columns which still exist in the current model.
             
-            to_select = [
-                c for c in meta_tables[table.__name__].model 
-                if c in table.__fields__ or c in aliases.values()
-            ]
-
-            migration_rows = await table.select(
-                *to_select, 
-                alias={v: k for k,v in aliases.items()},
-                primary_key=meta_tables[table.__name__].model['primary_key']
-            )
-
             insert_into_migration = migration_table.insert()
 
             values = []
@@ -400,26 +418,15 @@ class Database():
             new_table.create(self.engine)
 
             # load new table with old data, feeding from table+timestamp & default value of new row(s)
-            try:
-                rows = await table.select(
-                    *to_select,
-                    alias={v: k for k,v in aliases.items()},
-                    primary_key=meta_tables[table.__name__].model['primary_key']
-                )
-            except ValidationError as e:
-                self.log.exception(
-                    (f"Failed to migrate table {table.__name__} from old_schema \n"
-                    f"Consider annotating non-required fields with Optional[], set a default "
-                    f"value for new fields or use factory method via Default(default=<callable>) \n\n"
-                    f"Old Row data is accessible in {migration_table.fullname}"
-                    )
-                )
-                
-                raise e
+
             table.__metadata__.tables[table.__name__]['table'] = new_table
-            
+
+            for relationship, link_table in table.__metadata__.tables[table.__name__]['relationships'].items():
+                self.log.warning(f"re-creating related link-table {link_table[0].name}")
+                link_table[0].create()
+
             try:
-                for row in rows:
+                for row in migration_rows:
                     await row.insert()
             except Exception as e:
                 self.log.exception(
@@ -429,6 +436,7 @@ class Database():
                     f"Rolling back from {migration_table.fullname} to {table.__name__}"
                     )
                 )
+                
                 # triggr rollback
                 new_table.drop()
                 self.metadata.remove(new_table)
