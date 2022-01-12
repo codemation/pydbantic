@@ -39,8 +39,8 @@ class RelationshipRef(BaseModel):
     def __call__(self) -> Coroutine:
         return self._method_()
 
-    def _get_value(self):
-        return self._default_
+    # def _get_value(self):
+    #     return self._default_
 
     def dict(self, *args, **kwargs):
         return {f"{self.primary_key}": self.value}
