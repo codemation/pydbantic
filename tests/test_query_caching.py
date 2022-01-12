@@ -30,6 +30,7 @@ async def test_query_caching(loaded_database_and_model_with_cache):
     await employee.update()
 
     verify_employee = await Employee.get(employee_id=employee.employee_id)
+
     assert employee == verify_employee
 
     # should NOT be cached -  yet

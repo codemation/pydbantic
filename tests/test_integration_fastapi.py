@@ -1,10 +1,12 @@
 import time
 import pytest
 from fastapi.testclient import TestClient
-from tests.models import Employee
 
-def test_fastapi_integration(fastapi_app_with_loaded_database):
+@pytest.mark.asyncio
+async def test_fastapi_integration(fastapi_app_with_loaded_database):
     with TestClient(fastapi_app_with_loaded_database) as client:
+
+        from tests.models import Employee, Department, Positions, EmployeeInfo
 
         response = client.get('/employees')
         
@@ -27,6 +29,10 @@ def test_fastapi_integration(fastapi_app_with_loaded_database):
         employees = response.json()
 
         assert len(employees) == 200
+
+        emps = await Employee.all()
+        pos = await Positions.all()
+        deps = await Department.all()
 
         for employee in employees:
             del employee['employee_info']['employee']

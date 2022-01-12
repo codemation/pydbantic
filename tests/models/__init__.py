@@ -1,6 +1,6 @@
 from uuid import uuid4
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydbantic import DataBaseModel, PrimaryKey
 
 class Department(DataBaseModel):
@@ -26,7 +26,7 @@ class EmployeeInfo(DataBaseModel):
     city: Optional[str]
     zip: Optional[int]
     new: Optional[str]
-    employee: Optional['Employee'] = None
+    employee: Optional[Union['Employee', dict]] = None
 
 class Employee(DataBaseModel):
     employee_id: str = PrimaryKey()

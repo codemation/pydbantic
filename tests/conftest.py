@@ -1,8 +1,9 @@
 
+from pickle import load
 import pytest
 import time
 import os
-import uvloop
+import nest_asyncio
 import json
 import asyncio
 import sqlalchemy
@@ -26,7 +27,12 @@ DB_PATH = {
 
 DB_URL = DB_PATH[os.environ['ENV']]
 
-uvloop.install()
+@pytest.fixture(scope="session")
+def event_loop():
+    nest_asyncio.apply()
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
 
 @pytest.fixture()
 def db_url():
@@ -74,10 +80,7 @@ async def empty_database_and_model_with_cache(database_with_cache):
 
     yield db, Employee
 
-@pytest.mark.asyncio
-@pytest.fixture()
-async def loaded_database_and_model(database_with_cache):
-    db, Employee = database_with_cache
+async def load_db(db):
     async with db:
         for i in range(200):
             employee = Employee(**json.loads(
@@ -110,6 +113,11 @@ async def loaded_database_and_model(database_with_cache):
     )
             await employee.insert()
 
+@pytest.mark.asyncio
+@pytest.fixture()
+async def loaded_database_and_model(database_with_cache):
+    db, Employee = database_with_cache
+    await load_db(db)
     yield db, Employee
 
 @pytest.mark.asyncio
@@ -331,9 +339,80 @@ def new_model_5():
 
 @pytest.fixture()
 def new_model_6():
-    from example import Data
-    from example_sub import SubData
-    yield Data, SubData
+    yield
+    with open('example_sub.py', 'w') as e:
+        e.write(f"""
+# {time.time()}
+import uuid
+from pydantic import BaseModel
+
+def get_uuid():
+    return str(uuid.uuid4())
+
+class SubData(BaseModel):
+    a: int = 1
+    b: float = 1.0
+
+""")
+    with open('example.py', 'w') as e:
+        e.write(f"""
+from typing import Optional
+from pydbantic import DataBaseModel, PrimaryKey, Default
+from example_sub import get_uuid, SubData
+
+class Related(DataBaseModel):
+    f: str = PrimaryKey(default=get_uuid)
+    g: str = 'abcd1234'
+
+class Data(DataBaseModel):
+    a: int
+    b_new: float
+    c: str
+    d: list
+    e: str = PrimaryKey(default=get_uuid)
+    i: str
+    sub: SubData = None
+    related: Optional[Related] = None
+""")
+
+@pytest.fixture()
+def new_model_7():
+    from example import Data, SubData, Related
+    yield Data, SubData, Related
+    with open('example_sub.py', 'w') as e:
+        e.write(f"""
+# {time.time()}
+import uuid
+from pydantic import BaseModel
+
+def get_uuid():
+    return str(uuid.uuid4())
+
+class SubData(BaseModel):
+    a: int = 1
+    b: float = 1.0
+
+""")
+    with open('example.py', 'w') as e:
+        e.write(f"""
+
+from pydbantic import DataBaseModel, PrimaryKey, Default
+from example_sub import get_uuid, SubData
+
+class Related(DataBaseModel):
+    f: str = PrimaryKey(default=get_uuid)
+    g: str = 'abcd1234'
+
+class Data(DataBaseModel):
+    a: int
+    b_new: float
+    c: str
+    d: list
+    e: str = PrimaryKey(default=get_uuid)
+    i: str
+    sub: SubData = None
+    related: Optional[Related] = None
+""")
 
 
 def endpoint_router():
@@ -344,8 +423,8 @@ def endpoint_router():
     
     return router
 
-@pytest.mark.asyncio
-@pytest.fixture
+@pytest.mark.asyncio()
+@pytest.fixture()
 async def fastapi_app_with_loaded_database(loaded_database_and_model):
     app = FastAPI()
 
@@ -357,6 +436,7 @@ async def fastapi_app_with_loaded_database(loaded_database_and_model):
 
     @app.get('/employees')
     async def view_employees():
-        return await Employee.all()
-    
+        employees = await Employee.all()
+        return employees
+
     return app
