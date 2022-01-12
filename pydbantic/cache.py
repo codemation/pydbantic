@@ -40,7 +40,7 @@ class Redis:
             return
         
         await self.redis.delete(f'f_{flag}', *cache_keys)
-        self.log.warning(f"cache flag {flag} invalidated {len(cache_keys)} items")
+        self.log.debug(f"cache flag {flag} invalidated {len(cache_keys)} items")
 
 
 
