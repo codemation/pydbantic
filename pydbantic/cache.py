@@ -22,12 +22,15 @@ class Redis:
         return None
         
     async def set(self, cached_key, row_and_flag: tuple):
-        row, flag = row_and_flag
+        row, flags = row_and_flag
         await asyncio.gather(
             self.redis.set(
-                cached_key, dumps(([dict(r) for r in row], flag))
+                cached_key, dumps(([dict(r) for r in row], flags))
             ),
-            self.redis.rpush(f'f_{flag}', cached_key)
+            *[
+                self.redis.rpush(f'f_{flag}', cached_key)
+                for flag in flags
+            ],
         )
 
     async def invalidate(self, flag: str):

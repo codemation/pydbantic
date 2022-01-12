@@ -39,9 +39,6 @@ class RelationshipRef(BaseModel):
     def __call__(self) -> Coroutine:
         return self._method_()
 
-    # def _get_value(self):
-    #     return self._default_
-
     def dict(self, *args, **kwargs):
         return {f"{self.primary_key}": self.value}
         
@@ -804,7 +801,7 @@ class DataBaseModel(BaseModel):
 
         database = cls.__metadata__.database
 
-        results = await database.fetch(sel, cls.__name__, values)
+        results = await database.fetch(sel, {cls.__name__}, values)
 
         return bool(results)
 
@@ -927,7 +924,7 @@ class DataBaseModel(BaseModel):
         if order_by is not None:
             sel = sel.order_by(order_by)
 
-        results = await database.fetch(sel.statement, cls.__name__, values)
+        results = await database.fetch(sel.statement, models_selected, values)
         
         # build results_map
         results_map = {}
@@ -1107,7 +1104,7 @@ class DataBaseModel(BaseModel):
         database = cls.__metadata__.database
         session = Session(database.engine)
         sel = session.query(func.count()).select_from(table)
-        results = await database.fetch(sel.statement, cls.__name__)
+        results = await database.fetch(sel.statement, {cls.__name__})
         return results[0][0] if results else 0
 
     @classmethod
@@ -1157,7 +1154,7 @@ class DataBaseModel(BaseModel):
         sel, values = cls.check_limit_offset(sel.statement, values, limit, offset)
         
         if count_rows:
-            row_count = await database.fetch(sel.with_only_columns(func.count()), cls.__name__)
+            row_count = await database.fetch(sel.with_only_columns(func.count()), models_selected)
             if row_count:
                 if isinstance(row_count[0], dict):
                     return [v for _, v in row_count[0].items()][0]
@@ -1167,7 +1164,7 @@ class DataBaseModel(BaseModel):
         if not order_by is None:
             sel = sel.order_by(order_by)
 
-        results = await database.fetch(sel, cls.__name__, tuple(values))
+        results = await database.fetch(sel, models_selected, tuple(values))
 
         results_map = {}
         last_ind = -1
