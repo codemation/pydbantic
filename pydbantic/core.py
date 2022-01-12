@@ -1,8 +1,9 @@
 import asyncio
+from pydantic.fields import PrivateAttr
 from sqlalchemy.sql.elements import UnaryExpression
 from sqlalchemy.sql.expression import delete
 from sqlalchemy.util.langhelpers import NoneType
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, PrivateAttr
 import typing
 from typing import Awaitable, Callable, Coroutine, Optional, TypeVar, Union, List, Any, Tuple, ForwardRef
 import sqlalchemy
@@ -13,30 +14,37 @@ from pickle import dumps, loads
 class _Generic(BaseModel):
     pass
 
+def get_model_getter(model, primary_key, primary_key_value):
+    return lambda : model.get(**{primary_key: primary_key_value})
+
 class RelationshipRef(BaseModel):
     primary_key: str
     value: Any
-    method: Callable 
+    _method_: Callable = PrivateAttr()
+    _default_: Callable = PrivateAttr()
+    _model_: Callable = PrivateAttr()
     def __init__(self, model, primary_key, value, default=None):
+
         super().__init__(
             primary_key=primary_key, 
-            value=value,
-            method=get_model_getter(model, primary_key, value)
+            value=value
         )
-        self.Config.__model__ = model
-        self.Config.primary_key = primary_key
-        self.Config.value = value
-        self.Config.default = default
+        self._method_ = get_model_getter(model, primary_key, value)
+        self._default_ = default
+        self._model_ = model
 
     def __repr__(self):
-        return f"{self.value}"
+         return f"{self._model_.__name__}Ref({self.primary_key}={self.value})"
 
-    def __call__(self):
-        return self.method()
+    def __call__(self) -> Coroutine:
+        return self._method_()
+
+    def _get_value(self):
+        return self._default_
 
     def dict(self, *args, **kwargs):
-        #super().dict(*args, **kwargs)
-        return repr(self)
+        return {f"{self.primary_key}": self.value}
+        
 
 def get_model_getter(model, primary_key, primary_key_value):
     return lambda : model.get(**{primary_key: primary_key_value})
@@ -182,11 +190,13 @@ class DataBaseModelAttribute:
             tuple(choices)
         )
 
-TDataBaseModel = TypeVar('DataBaseModel')
+DataBaseModel = TypeVar('DataBaseModel')
 
 class DataBaseModel(BaseModel):
     __metadata__: BaseMeta = BaseMeta()
-    
+    class Config:
+       arbitrary_types_allowed = True
+        
     @classmethod
     def check_if_subtype(cls, field):
 
@@ -250,8 +260,6 @@ class DataBaseModel(BaseModel):
 
         columns, link_tables = cls.convert_fields_to_columns()
 
-
-        database = cls.__metadata__.database
         cls.__metadata__.tables[name]['table'] = sqlalchemy.Table(
             name,
             cls.__metadata__.metadata,
@@ -274,7 +282,7 @@ class DataBaseModel(BaseModel):
             )
 
     @classmethod
-    def generate_relationship_table(cls, related_model: TDataBaseModel, field_ref: str) -> NoneType:
+    def generate_relationship_table(cls, related_model: DataBaseModel, field_ref: str) -> NoneType:
         """
         creates a 2 column table that enables a link between
         cls primary_key & related_model primary key 
@@ -351,6 +359,7 @@ class DataBaseModel(BaseModel):
             data_base_model = cls.check_if_subtype({'type': model_field.type_})
             if data_base_model:
                 data_base_model.update_forward_refs()
+                
         
     @classmethod
     def convert_fields_to_columns(
@@ -483,7 +492,7 @@ class DataBaseModel(BaseModel):
         return columns, link_tables
 
     async def serialize(
-        self: TDataBaseModel, 
+        self: DataBaseModel, 
         data: dict, 
         insert: bool = False,
         update: bool = False,
@@ -610,7 +619,7 @@ class DataBaseModel(BaseModel):
 
         return values, link_chain
 
-    async def save(self: TDataBaseModel, return_links: bool = False) -> NoneType:
+    async def save(self: DataBaseModel, return_links: bool = False) -> NoneType:
         primary_key = self.__metadata__.tables[self.__class__.__name__]['primary_key']
         count = await self.__class__.filter(
             **{primary_key: getattr(self, primary_key)},
@@ -808,8 +817,8 @@ class DataBaseModel(BaseModel):
         session_query: Query,
         tables_to_select: list,
         models_selected: set,
-        root_model: TDataBaseModel = None,
-    ) -> Tuple[Query, List[Tuple[sqlalchemy.Table, TDataBaseModel, str, TDataBaseModel]]]:
+        root_model: DataBaseModel = None,
+    ) -> Tuple[Query, List[Tuple[sqlalchemy.Table, DataBaseModel, str, DataBaseModel]]]:
         """
         Traverse a DataBaseModel relationship and add subsequent 
         .join() clauses to active session_query, and append foreign tables
@@ -874,7 +883,7 @@ class DataBaseModel(BaseModel):
         order_by = None,
         primary_key: str = None,
         backward_refs: bool = True,
-    ) -> List[Optional[TDataBaseModel]]:
+    ) -> List[Optional[DataBaseModel]]:
         if alias is None:
             alias = {}
 
@@ -890,7 +899,8 @@ class DataBaseModel(BaseModel):
         models_selected = set((cls.__name__,))
 
         primary_key = cls.__metadata__.tables[cls.__name__]['primary_key'] if not primary_key else primary_key
-        sel = session.query(table)
+        
+        sel = session.query(*[c for c in table.c if c.name in selection])
 
         for _sel in selection:
             column_name = _sel
@@ -923,6 +933,9 @@ class DataBaseModel(BaseModel):
         results_map = {}
         last_ind = -1
         for i, c in enumerate(table.c):
+            if not c.name in selection:
+                continue
+
             col_name = c.name if not c.name in alias else alias[c.name]
             last_ind = last_ind + 1
             if c.name in cls.__metadata__.tables[cls.__name__]['foreign_keys']:
@@ -959,15 +972,13 @@ class DataBaseModel(BaseModel):
                 for k, result_ind in results_map[cls].items():
                     serialized = cls.__metadata__.tables[cls.__name__]['column_map'][k][2]
                     is_array = cls.__metadata__.tables[cls.__name__]['column_map'][k][3]
+                    expected_type = cls.__metadata__.tables[cls.__name__]['column_map'][k][1]
                     row_result = result[result_ind]
                     if serialized:
                         row_result = deserialize(row_result)
-
-                        if type(row_result) in {set, list, tuple} and is_array:
-                            decoded_results[result_key][k] = row_result
-                            continue
-
-                        decoded_results[result_key][k] = row_result
+                            
+                        if expected_type in {set, list, tuple}:
+                            row_result = expected_type(row_result)
 
                     if is_array:
                         if not k in decoded_results[result_key]:
@@ -1009,13 +1020,16 @@ class DataBaseModel(BaseModel):
 
                 try:
                     model_ins = f_model(**row_results)
-                    for k in cls.__metadata__.tables[f_model.__name__]['foreign_keys']:
+
+                    for k, foreign_model in cls.__metadata__.tables[f_model.__name__]['foreign_keys'].items():
+                        if not parent.__name__ == foreign_model.__name__ or not backward_refs:
+                            continue
                         foreign_ref = getattr(model_ins, k)
-                        try:
-                            if backward_refs and  (foreign_ref is None or (isinstance(foreign_ref, list) and foreign_ref == [])):
-                                setattr(model_ins, k, RelationshipRef(parent, parent_p_key, parent_p_key_val))
-                        except Exception as e:
-                            breakpoint()
+                        
+                        if foreign_ref is None:
+                            setattr(model_ins, k, RelationshipRef(parent, parent_p_key, parent_p_key_val, default=foreign_ref))
+                        elif foreign_ref == []:
+                            setattr(model_ins, k, [RelationshipRef(parent, parent_p_key, parent_p_key_val, default=foreign_ref)])
 
                 except ValidationError:
                     model_ins = None
@@ -1038,7 +1052,7 @@ class DataBaseModel(BaseModel):
                 else:
                     row_results[column_name] = model_ins
                     decoded_results[result_key][column_name] = row_results[column_name]
-        
+
         parsed_results = [
             cls(**decoded_results[pk]) for pk in decoded_results
 
@@ -1074,8 +1088,9 @@ class DataBaseModel(BaseModel):
         cls, 
         limit: int = None, 
         offset: int = 0,
-        order_by = None
-    ) -> List[Optional[TDataBaseModel]]:
+        order_by = None,
+        backward_refs: bool = True
+    ) -> List[Optional[DataBaseModel]]:
         parameters = {}
         if limit:
             parameters['limit'] = limit
@@ -1084,7 +1099,7 @@ class DataBaseModel(BaseModel):
         if order_by is not None:
             parameters['order_by'] = order_by
 
-        return await cls.select('*', **parameters)
+        return await cls.select('*', **parameters, backward_refs=backward_refs)
 
     @classmethod
     async def count(cls) -> int:
@@ -1106,7 +1121,7 @@ class DataBaseModel(BaseModel):
         join: bool = True,
         backward_refs: bool = True,
         **column_filters: dict
-    ) -> List[Optional[TDataBaseModel]]:
+    ) -> List[Optional[DataBaseModel]]:
         table = cls.get_table()
         database = cls.__metadata__.database
         session = Session(database.engine)
@@ -1239,10 +1254,17 @@ class DataBaseModel(BaseModel):
 
                 try:
                     model_ins = f_model(**row_results)
-                    for k in cls.__metadata__.tables[f_model.__name__]['foreign_keys']:
+                    
+                    for k, foreign_model in cls.__metadata__.tables[f_model.__name__]['foreign_keys'].items():
+                        if not parent.__name__ == foreign_model.__name__ or not backward_refs:
+                            continue
                         foreign_ref = getattr(model_ins, k)
-                        if backward_refs and  (foreign_ref is None or foreign_ref == []):
-                            setattr(model_ins, k, RelationshipRef(parent, parent_p_key, parent_p_key_val))
+                        
+                        if foreign_ref is None:
+                            setattr(model_ins, k, RelationshipRef(parent, parent_p_key, parent_p_key_val, default=foreign_ref))
+                        elif foreign_ref == []:
+                            setattr(model_ins, k, [RelationshipRef(parent, parent_p_key, parent_p_key_val, default=foreign_ref)])
+
                 except ValidationError:
                     model_ins = None
                         
@@ -1388,7 +1410,7 @@ class DataBaseModel(BaseModel):
         *p_key_condition: DataBaseModelCondition, 
         backward_refs=True,
         **p_key: dict
-    ) -> TDataBaseModel:
+    ) -> DataBaseModel:
         if not p_key_condition:
             for k in p_key:
                 primary_key = cls.__metadata__.tables[cls.__name__]['primary_key']
@@ -1400,11 +1422,11 @@ class DataBaseModel(BaseModel):
         return result[0] if result else None
 
     @classmethod
-    async def create(cls, **model_kwargs) -> TDataBaseModel:
+    async def create(cls, **model_kwargs) -> DataBaseModel:
         new_obj = cls(**model_kwargs)
         await new_obj.insert()
         return new_obj
-    def __init__(self, **model_kwargs) -> TDataBaseModel:
+    def __init__(self, **model_kwargs) -> DataBaseModel:
         return super().__init__(**model_kwargs)
 
 
