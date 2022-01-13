@@ -28,9 +28,10 @@ async def test_model_many_to_many(loaded_database_and_model):
 
     await manager_position.save()
 
-    manager_position = await Positions.get(Positions.position_id==manager_position.position_id)
+    updated_manager_position = await Positions.get(Positions.position_id==manager_position.position_id)
 
-    assert len(manager_position.employees) == 199
+    assert len(updated_manager_position.employees) == 199
+    
     
     employee = await Employee.get(Employee.employee_id == removed_employee.employee_id)
     assert len(employee.position) == 0
