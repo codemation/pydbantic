@@ -21,7 +21,7 @@ from tests.models import Department, Employee, EmployeeInfo, Positions
 
 DB_PATH = {
     'sqlite': 'sqlite:///test.db',
-    'mysql': 'mysql://josh:abcd1234@127.0.0.1/auth-db',
+    'mysql': 'mysql://josh:abcd1234@127.0.0.1/database',
     'postgres': 'postgresql://postgres:abcd1234@localhost/database'
 }
 
@@ -71,6 +71,7 @@ async def database_with_cache(request):
     yield db, Employee
     db.metadata.drop_all()
 
+    await db.cache.redis.flushall()
     await db.cache.redis.close()
 
 @pytest.fixture()

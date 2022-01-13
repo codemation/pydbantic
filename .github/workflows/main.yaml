@@ -171,6 +171,7 @@ jobs:
       - name: Run Tests - Sqlite
         run: |
           for env in sqlite; do
+            export ENV=$env; 
             pytest tests/test_database.py -s -x;
             pytest tests/test_integration_fastapi.py -s -x;
             pytest tests/test_model_1_to_1.py -s -x;
