@@ -1,19 +1,20 @@
 from uuid import uuid4
 from datetime import datetime
 from typing import List, Optional, Union
-from pydantic import BaseModel, Field
-from pydbantic import DataBaseModel, PrimaryKey, Default
+from pydbantic import DataBaseModel, PrimaryKey
 
 class Department(DataBaseModel):
-    id: str 
+    department_id: str 
     name: str
     company: str
     is_sensitive: bool = False
+    positions: List[Optional['Positions']] = []
 
 class Positions(DataBaseModel):
-    id: str
+    position_id: str
     name: str
-    department: Department
+    department: Department = None
+    employees: List[Optional['Employee']] = []
 
 class EmployeeInfo(DataBaseModel):
     #__renamed__= [{'old_name': 'first_name', 'new_name': 'first_names'}]
@@ -25,11 +26,12 @@ class EmployeeInfo(DataBaseModel):
     city: Optional[str]
     zip: Optional[int]
     new: Optional[str]
+    employee: Optional[Union['Employee', dict]] = None
 
 class Employee(DataBaseModel):
-    id: str = PrimaryKey()
-    employee_info: Optional[EmployeeInfo]
-    position: Positions
+    employee_id: str = PrimaryKey()
+    employee_info: Optional[EmployeeInfo] = None
+    position: List[Optional[Positions]] = []
     salary: float
     is_employed: bool
     date_employed: Optional[str]
@@ -39,11 +41,12 @@ def time_now():
 def get_uuid4():
     return str(uuid4())
 
+
 class Coordinate(DataBaseModel):
-    time: str = PrimaryKey(default=time_now)
-    latitude: float
-    longitude: float
+    id: str = PrimaryKey(default=get_uuid4)
+    lat_long: tuple
+    journeys: List[Optional["Journey"]] = []
 
 class Journey(DataBaseModel):
     trip_id: str = PrimaryKey(default=get_uuid4)
-    waypoints: List[Optional[Coordinate]]
+    waypoints: List[Optional[Coordinate]] = []

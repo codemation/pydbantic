@@ -4,6 +4,10 @@ from pydbantic import Database
 
 @pytest.mark.asyncio
 async def test_model_migrations_3_new(new_model_2, db_url):
+    """
+    test migration when a colunn is renamed
+    b -> b_new
+    """
     Data = new_model_2
     db = await Database.create(
         db_url,

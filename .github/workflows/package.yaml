@@ -49,23 +49,25 @@ jobs:
         run: |
           for env in mysql; do
             export ENV=$env; 
-            pytest tests/test_database.py;
-            pytest tests/test_model_insertions.py;
-            pytest tests/test_model_updates.py;
-            pytest tests/test_model_deletions.py;
-            pytest tests/test_models.py;
-            pytest tests/test_model_advanced.py;
-            pytest tests/test_query_caching.py;
-            pytest tests/test_model_filtering_operators.py;
-            pytest tests/test_model_limit_offset.py;
-            pytest tests/test_model_limit_offset.py;
-            pytest tests/test_querying.py;
-            pytest tests/test_query_no_caching.py;
-            pytest tests/test_integration_fastapi.py;
-            for mig_test in {0..7}; do 
+            pytest tests/test_database.py -s -x;
+            pytest tests/test_integration_fastapi.py -s -x;
+            pytest tests/test_model_1_to_1.py -s -x;
+            pytest tests/test_model_advanced.py -s -x;
+            pytest tests/test_model_connections.py -s -x;
+            pytest tests/test_model_counting.py -s -x;
+            pytest tests/test_model_deletions.py -s -x;
+            pytest tests/test_model_filtering_operators.py -s -x;
+            pytest tests/test_model_insertions.py -s -x;
+            pytest tests/test_model_limit_offset.py -s -x;
+            pytest tests/test_model_many_to_many.py -s -x;
+            pytest tests/test_models.py -s -x;
+            pytest tests/test_model_updates.py -s -x;
+            pytest tests/test_query_caching.py -s -x;
+            pytest tests/test_querying.py -s -x;
+            pytest tests/test_query_no_caching.py -s -x;
+            for mig_test in {0..9}; do 
               pytest tests/migrations/test_model_migration_$mig_test.py;
             done
-            pytest tests/test_model_connections.py
           done
 
   # Label of the container job
@@ -105,23 +107,25 @@ jobs:
         run: |
           for env in sqlite; do
             export ENV=$env; 
-            pytest tests/test_database.py;
-            pytest tests/test_model_insertions.py;
-            pytest tests/test_model_updates.py;
-            pytest tests/test_model_deletions.py;
-            pytest tests/test_models.py;
-            pytest tests/test_model_advanced.py;
-            pytest tests/test_query_caching.py;
-            pytest tests/test_model_filtering_operators.py;
-            pytest tests/test_model_limit_offset.py;
-            pytest tests/test_model_limit_offset.py;
-            pytest tests/test_querying.py;
-            pytest tests/test_query_no_caching.py;
-            pytest tests/test_integration_fastapi.py;
-            for mig_test in {0..7}; do 
+            pytest tests/test_database.py -s -x;
+            pytest tests/test_integration_fastapi.py -s -x;
+            pytest tests/test_model_1_to_1.py -s -x;
+            pytest tests/test_model_advanced.py -s -x;
+            pytest tests/test_model_connections.py -s -x;
+            pytest tests/test_model_counting.py -s -x;
+            pytest tests/test_model_deletions.py -s -x;
+            pytest tests/test_model_filtering_operators.py -s -x;
+            pytest tests/test_model_insertions.py -s -x;
+            pytest tests/test_model_limit_offset.py -s -x;
+            pytest tests/test_model_many_to_many.py -s -x;
+            pytest tests/test_models.py -s -x;
+            pytest tests/test_model_updates.py -s -x;
+            pytest tests/test_query_caching.py -s -x;
+            pytest tests/test_querying.py -s -x;
+            pytest tests/test_query_no_caching.py -s -x;
+            for mig_test in {0..9}; do 
               pytest tests/migrations/test_model_migration_$mig_test.py;
             done
-            pytest tests/test_model_connections.py
           done
   test-postgres:
     needs: test-mysql
@@ -172,21 +176,23 @@ jobs:
         run: |
           for env in postgres; do
             export ENV=$env; 
-            pytest tests/test_database.py;
-            pytest tests/test_model_insertions.py;
-            pytest tests/test_model_updates.py;
-            pytest tests/test_model_deletions.py;
-            pytest tests/test_models.py;
-            pytest tests/test_model_advanced.py;
-            pytest tests/test_query_caching.py;
-            pytest tests/test_model_filtering_operators.py;
-            pytest tests/test_model_limit_offset.py;
-            pytest tests/test_model_limit_offset.py;
-            pytest tests/test_querying.py;
-            pytest tests/test_query_no_caching.py;
-            pytest tests/test_integration_fastapi.py;
-            for mig_test in {0..7}; do 
+            pytest tests/test_database.py -s -x;
+            pytest tests/test_integration_fastapi.py -s -x;
+            pytest tests/test_model_1_to_1.py -s -x;
+            pytest tests/test_model_advanced.py -s -x;
+            pytest tests/test_model_connections.py -s -x;
+            pytest tests/test_model_counting.py -s -x;
+            pytest tests/test_model_deletions.py -s -x;
+            pytest tests/test_model_filtering_operators.py -s -x;
+            pytest tests/test_model_insertions.py -s -x;
+            pytest tests/test_model_limit_offset.py -s -x;
+            pytest tests/test_model_many_to_many.py -s -x;
+            pytest tests/test_models.py -s -x;
+            pytest tests/test_model_updates.py -s -x;
+            pytest tests/test_query_caching.py -s -x;
+            pytest tests/test_querying.py -s -x;
+            pytest tests/test_query_no_caching.py -s -x;
+            for mig_test in {0..9}; do 
               pytest tests/migrations/test_model_migration_$mig_test.py;
             done
-            pytest tests/test_model_connections.py
           done

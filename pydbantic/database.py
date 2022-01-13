@@ -1,9 +1,12 @@
+import os
+from builtins import Exception
 import time
 import asyncio
 import sqlalchemy
 import uuid
 from copy import deepcopy
 from pickle import dumps
+
 from pydantic import ValidationError
 from databases import Database as _Database
 from pydbantic.core import DataBaseModel, TableMeta, DatabaseInit
@@ -37,8 +40,9 @@ class Database():
         self.engine = sqlalchemy.create_engine(
             self.DB_URL,
             connect_args={'check_same_thread': False}
-            if 'sqlite' in str(self.DB_URL) else {}
+            if 'sqlite' in str(self.DB_URL) else {},
         )
+        
         self.DEFAULT_TRANSLATIONS = DEFAULT_TRANSLATIONS
 
         self.metadata = sqlalchemy.MetaData(self.engine)
@@ -56,14 +60,23 @@ class Database():
         # setup table_metadata table
         self.TableMeta = TableMeta
         self.TableMeta.setup(self)
+        self.TableMeta.generate_model_attributes()
 
         self.DatabaseInit = DatabaseInit
         self.DatabaseInit.setup(self)
+        self.DatabaseInit.generate_model_attributes()
 
         for table in tables:
+            table.update_forward_refs()
+            
+        for table in tables:
             self.add_table(table)
-
-        setattr(self, table.__name__, table)
+        
+        for _, table in DatabaseInit.__metadata__.tables.items():
+            table['model'].generate_model_attributes()
+        
+        if self.testing:
+            self.testing_setup()
 
         self.metadata.create_all(self.engine)
 
@@ -84,7 +97,6 @@ class Database():
         ):
             return self.DEFAULT_TRANSLATIONS[self.db_type]['default_primary'], True
 
-        # 
         return column_config, column_config['column_type'] == sqlalchemy.LargeBinary
 
     def setup_logger(self, logger=None, level=None):
@@ -105,9 +117,10 @@ class Database():
         table_fields = {}
         table_fields_list = []
         for _, field in table.__fields__.items():
+            data_base_model = table.check_if_subtype({'type': field.type_})
             table_fields[field.name] = {
                 'name': field.name,
-                'type': field.type_,
+                'type': field.type_ if not data_base_model else data_base_model,
                 'required': field.required
             }
             table_fields_list.append(table_fields[field.name])
@@ -117,7 +130,7 @@ class Database():
         table_meta = self.TableMeta(
             table_name=table.__name__, 
             model=table_fields, 
-            columns=table.convert_fields_to_columns(model_fields=table_fields_list, update=True)
+            columns=table.convert_fields_to_columns(model_fields=table_fields_list, update=True)[0]
         )
         
         if not existing:
@@ -130,6 +143,40 @@ class Database():
         if not table in self.tables:
             self.tables.append(table)
         table.setup(self)
+
+    def testing_setup(self):
+        if self.testing:
+            if self.TableMeta:
+                try:
+                    TableMeta.__metadata__.tables[TableMeta.__name__]['table'].drop()
+                except Exception:
+                    pass
+                self.metadata.remove(TableMeta.__metadata__.tables[TableMeta.__name__]['table'])
+                TableMeta.__metadata__.tables[TableMeta.__name__]['table'].create(self.engine)
+
+            dropped = set()
+            for table in self.tables:
+                for _, link_table in table.__metadata__.tables[table.__name__]['relationships'].items():
+                    if not link_table[0].name in dropped:
+                        dropped.add(link_table[0].name)
+                        try:
+                            link_table[0].metadata.tables[link_table[0].name].drop()
+                        except Exception:
+                            pass
+                try:
+                    table.__metadata__.tables[table.__name__]['table'].drop()
+                except Exception:
+                    pass
+                self.metadata.remove(table.__metadata__.tables[table.__name__]['table'])
+
+                table.__metadata__.tables[table.__name__]['table'].create(self.engine)
+
+            created = set()
+            for table in self.tables:
+                for _, link_table in table.__metadata__.tables[table.__name__]['relationships'].items():
+                    if not link_table[0].name in dropped:
+                        created.add(link_table[0].name)
+                        link_table[0].create(self.engine)
 
     @staticmethod
     def determine_migration_order(migrations_required: dict):
@@ -188,19 +235,9 @@ class Database():
                 database_init = await DatabaseInit.get(database_url=self.DB_URL)
 
         # get list of all tables in table_metadata table
-        if self.testing:
-            if self.TableMeta:
-                TableMeta.__metadata__.tables[TableMeta.__name__]['table'].drop()
-                self.metadata.remove(TableMeta.__metadata__.tables[TableMeta.__name__]['table'])
-                TableMeta.__metadata__.tables[TableMeta.__name__]['table'].create(self.engine)
 
-            for table in self.tables:
-                table.__metadata__.tables[table.__name__]['table'].drop()
-                self.metadata.remove(table.__metadata__.tables[table.__name__]['table'])
-                table.__metadata__.tables[table.__name__]['table'].create(self.engine)
-            if self.cache_enabled:
-                await self.cache.redis.flushdb()
-
+        if self.testing and self.cache_enabled:
+            await self.cache.redis.flushdb()
 
         meta_tables = {}
 
@@ -231,8 +268,15 @@ class Database():
                     migration_blame.append(f"New Column: {field}")
                     continue
 
-                if not table.__fields__[field].type_ == existing_model[field]['type']:
-                    migration_blame.append(f"Modified Column: {field}")
+                if issubclass(existing_model[field]['type'], DataBaseModel):
+                    current_model = DataBaseModel.check_if_subtype({"type": table.__fields__[field].type_})
+                    if not current_model == existing_model[field]['type']:
+                        migration_blame.append(f"Modified Column: {field} from {existing_model[field]['type']} -> {current_model}")
+                        is_migration_required = True
+                elif not table.__fields__[field].type_ == existing_model[field]['type']:
+                    migration_blame.append(
+                        f"Modified Column: {field} - from {existing_model[field]['type']} to {table.__fields__[field].type_}"
+                    )
                     is_migration_required = True
 
                 
@@ -280,19 +324,51 @@ class Database():
             } if hasattr(table, '__renamed__') else {}
 
             old_table_columns = table.convert_fields_to_columns(include=to_select, alias=aliases)
-            
-            old_table = sqlalchemy.Table(
-                table.__name__,
-                self.metadata,
-                *old_table_columns
+
+            to_select = [
+                c for c in meta_tables[table.__name__].model 
+                if (c in table.__fields__ or c in aliases.values())
+            ]
+
+            old_table = None
+            if aliases:
+                self.metadata.remove(table.__metadata__.tables[table.__name__]['table'])
+                
+                old_table = sqlalchemy.Table(
+                    table.__name__,
+                    self.metadata,
+                    *old_table_columns[0],
+                )
+
+                table.__metadata__.tables[table.__name__]['table'] = old_table
+
+        
+            migration_rows = await table.select(
+                *to_select, 
+                alias={v: k for k,v in aliases.items()},
+                primary_key=meta_tables[table.__name__].model['primary_key'],
+                backward_refs=False
             )
+
+            # if table linked with relationship, drop link table
+            for rel, rel_table in table.__metadata__.tables[table.__name__]['relationships'].items():
+                self.log.warning(f"dropping related link-table {rel_table[0].name}")
+                rel_table[0].drop(self.engine)
+                self.metadata.remove(rel_table[0])
+                
+            if old_table is None:
+                old_table = sqlalchemy.Table(
+                    table.__name__,
+                    self.metadata,
+                    *old_table_columns[0],
+                )
 
             table.__metadata__.tables[table.__name__]['table'] = old_table
 
             migration_table = sqlalchemy.Table(
                 table.__name__ + f'_{int(time.time())}',
                 self.metadata,
-                *meta_tables[table.__name__].columns
+                *meta_tables[table.__name__].columns,
             )
             
             migration_table.create(self.engine)
@@ -301,13 +377,6 @@ class Database():
             # selecting only previously existing columns &&
             # columns which still exist in the current model.
             
-            to_select = [
-                c for c in meta_tables[table.__name__].model 
-                if c in table.__fields__ or c in aliases.values()
-            ]
-
-            migration_rows = await table.select(*to_select, alias={v: k for k,v in aliases.items()})
-
             insert_into_migration = migration_table.insert()
 
             values = []
@@ -322,13 +391,16 @@ class Database():
                         del row_data[k]
                     
                 values.append(
-                    row.serialize(row_data)
+                    await row.serialize(row_data)
                 )
 
-            values = await asyncio.gather(*values)
             
-            for query_values in values:
+            for query_values, links in values:
                 await self.execute(insert_into_migration, query_values)
+                try:
+                    await asyncio.gather(*links)
+                except Exception:
+                    pass
         
             # drop existing table
             old_config = deepcopy(table.__metadata__.tables[table.__name__])
@@ -341,27 +413,20 @@ class Database():
             new_table = sqlalchemy.Table(
                 table.__name__,
                 self.metadata,
-                *table.convert_fields_to_columns()
+                *table.convert_fields_to_columns()[0],
             )
             new_table.create(self.engine)
 
             # load new table with old data, feeding from table+timestamp & default value of new row(s)
-            try:
-                rows = await table.select(*to_select, alias={v: k for k,v in aliases.items()})
-            except ValidationError as e:
-                self.log.exception(
-                    (f"Failed to migrate table {table.__name__} from old_schema \n"
-                    f"Consider annotating non-required fields with Optional[], set a default "
-                    f"value for new fields or use factory method via Default(default=<callable>) \n\n"
-                    f"Old Row data is accessible in {migration_table.fullname}"
-                    )
-                )
-                
-                raise e
+
             table.__metadata__.tables[table.__name__]['table'] = new_table
-            
+
+            for relationship, link_table in table.__metadata__.tables[table.__name__]['relationships'].items():
+                self.log.warning(f"re-creating related link-table {link_table[0].name}")
+                link_table[0].create()
+
             try:
-                for row in rows:
+                for row in migration_rows:
                     await row.insert()
             except Exception as e:
                 self.log.exception(
@@ -371,6 +436,7 @@ class Database():
                     f"Rolling back from {migration_table.fullname} to {table.__name__}"
                     )
                 )
+                
                 # triggr rollback
                 new_table.drop()
                 self.metadata.remove(new_table)
@@ -381,7 +447,8 @@ class Database():
                 rollback_table = sqlalchemy.Table(
                     table.__name__,
                     self.metadata,
-                    *meta_table.columns
+                    *meta_table.columns,
+
                 )
                 
                 rollback_table.create(self.engine)
@@ -409,7 +476,7 @@ class Database():
 
                 values = await asyncio.gather(*values)
                 
-                for query_values in values:
+                for query_values, links in values:
                     await self.execute(insert_into_rollback, query_values)
                 
                 raise e
@@ -425,7 +492,7 @@ class Database():
             database_init.status == 'ready'
             await database_init.update()
             
-    async def execute(self, query, values):
+    async def execute(self, query, values=None):
         """execute an insert, update, delete table query &
             invalidates cache for associated table if 
             cache is enabled
@@ -434,7 +501,7 @@ class Database():
             await self.cache.invalidate(query.table.name)
         
         self.log.debug(f"database query: {query} - values {values}")
-            
+
         async with self as conn:
             return await conn.execute(query=query, values=values)
 

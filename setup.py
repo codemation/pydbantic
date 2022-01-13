@@ -1,12 +1,13 @@
 import setuptools
 
 BASE_REQUIREMENTS = [
-    'SQLAlchemy==1.3.24', 
-    'databases==0.4.3', 
+    'SQLAlchemy==1.4.28',
+    'databases==0.5.3', 
     'aioredis==2.0.0', 
     'pydantic==1.8.2',
 ]
 MYSQL_REQUIREMENTS = [
+    'aiomysql==0.0.21',
     'cryptography==3.4.8',
     'mysqlclient==2.0.3',
     'PyMySQL==0.9.3',

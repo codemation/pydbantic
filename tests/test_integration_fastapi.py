@@ -1,10 +1,12 @@
 import time
 import pytest
 from fastapi.testclient import TestClient
-from tests.models import Employee
 
-def test_fastapi_integration(fastapi_app_with_loaded_database):
+@pytest.mark.asyncio
+async def test_fastapi_integration(fastapi_app_with_loaded_database):
     with TestClient(fastapi_app_with_loaded_database) as client:
+
+        from tests.models import Employee, Department, Positions, EmployeeInfo
 
         response = client.get('/employees')
         
@@ -13,15 +15,13 @@ def test_fastapi_integration(fastapi_app_with_loaded_database):
         current_employees = response.json()
 
         for employee in current_employees:
-            Employee(**employee)
-        
-        # # send new model to api_router
-        # for employee in current_employees:
-        #     new_employee = employee.copy() 
-        #     new_employee['id'] = f'{new_employee["id"]}_new_{time.time()}'
-        #     response = client.post('/employee/create', json=new_employee)
-            
-        #     assert response.status_code == 200
+            del employee['employee_info']['employee']
+            del employee['position'][0]['employees']
+            del employee['position'][0]['department']['positions']
+            try:
+                Employee(**employee)
+            except Exception as e:
+                breakpoint()
         
         response = client.get('/employees')
         assert response.status_code == 200
@@ -30,10 +30,18 @@ def test_fastapi_integration(fastapi_app_with_loaded_database):
 
         assert len(employees) == 200
 
+        emps = await Employee.all()
+        pos = await Positions.all()
+        deps = await Department.all()
+
         for employee in employees:
+            del employee['employee_info']['employee']
+            del employee['position'][0]['employees']
+            del employee['position'][0]['department']['positions']
+
             new_employee = Employee(**employee)
         
-            new_employee.id = f'{employee["id"]}_new_{time.time()}'
+            new_employee.employee_id = f'{employee["employee_id"]}_new_{time.time()}'
             response = client.post('/employee', json=new_employee.dict())
             assert response.status_code == 200
     
@@ -47,9 +55,12 @@ def test_fastapi_integration(fastapi_app_with_loaded_database):
 
         # verify bad input
         for employee in employees:
+            del employee['employee_info']['employee']
+            del employee['position'][0]['employees']
+            del employee['position'][0]['department']['positions']
             Employee(**employee)
         
-            employee['id'] = f'{employee["id"]}_new_{time.time()}'
+            employee['employee_id'] = f'{employee["employee_id"]}_new_{time.time()}'
             employee['is_employed'] = 'not a bool'
             response = client.post('/employee', json=employee)
 

@@ -16,7 +16,7 @@ async def test_query_caching(loaded_database_and_model_with_cache):
 
     print(f"perf: {perf} perf2: {perf2}")
     
-    assert len(sel2) == 800
+    assert len(sel2) == 20
 
     # trigger cache clear event
 
@@ -29,7 +29,9 @@ async def test_query_caching(loaded_database_and_model_with_cache):
     employee.salary = 100000.00
     await employee.update()
 
-    assert employee == await Employee.get(id=employee.id)
+    verify_employee = await Employee.get(employee_id=employee.employee_id)
+
+    assert employee == verify_employee
 
     # should NOT be cached -  yet
     filter_sel = await Employee.filter(salary=0.0)

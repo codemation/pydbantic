@@ -1,8 +1,9 @@
-from asyncio.base_events import _run_until_complete_cb
+
+from pickle import load
 import pytest
 import time
 import os
-import uvloop
+import nest_asyncio
 import json
 import asyncio
 import sqlalchemy
@@ -13,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from pydbantic import DataBaseModel, Database
 from pydbantic.cache import Redis
-from tests.models import Employee
+from tests.models import Department, Employee, EmployeeInfo, Positions
 
 
 
@@ -26,7 +27,12 @@ DB_PATH = {
 
 DB_URL = DB_PATH[os.environ['ENV']]
 
-uvloop.install()
+@pytest.fixture(scope="session")
+def event_loop():
+    nest_asyncio.apply()
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
 
 @pytest.fixture()
 def db_url():
@@ -37,7 +43,10 @@ def db_url():
 async def empty_database_and_model_no_cache(request):
     db = await Database.create(
         request.param,
-        tables=[Employee],
+        tables=[Employee, 
+                EmployeeInfo, 
+                Positions,
+                Department],
         cache_enabled=False,
         testing=True
     )
@@ -49,13 +58,20 @@ async def database_with_cache(request):
 
     db = await Database.create(
             request.param,  
-            tables=[Employee],
+            tables=[
+                Employee, 
+                EmployeeInfo, 
+                Positions,
+                Department
+            ],
             cache_enabled=True,
             testing=True
         )
 
     yield db, Employee
+    db.metadata.drop_all()
 
+    await db.cache.redis.flushall()
     await db.cache.redis.close()
 
 @pytest.fixture()
@@ -65,16 +81,13 @@ async def empty_database_and_model_with_cache(database_with_cache):
 
     yield db, Employee
 
-@pytest.mark.asyncio
-@pytest.fixture()
-async def loaded_database_and_model(database_with_cache):
-    db, Employee = database_with_cache
+async def load_db(db):
     async with db:
         for i in range(200):
             employee = Employee(**json.loads(
         f"""
   {{
-    "id": "abcd{time.time()}",
+    "employee_id": "abcd{i}",
     "employee_info": {{
       "ssn": "{i}",
       "first_name": "joe",
@@ -84,16 +97,16 @@ async def loaded_database_and_model(database_with_cache):
       "city": null,
       "zip": null
     }},
-    "position": {{
-      "id": "1234",
+    "position": [{{
+      "position_id": "1234",
       "name": "manager",
       "department": {{
-        "id": "5678",
+        "department_id": "5678",
         "name": "hr",
         "company": "abc company",
         "is_sensitive": false
       }}
-    }},
+    }}],
     "salary": 0,
     "is_employed": true,
     "date_employed": null
@@ -101,17 +114,22 @@ async def loaded_database_and_model(database_with_cache):
     )
             await employee.insert()
 
+@pytest.mark.asyncio
+@pytest.fixture()
+async def loaded_database_and_model(database_with_cache):
+    db, Employee = database_with_cache
+    await load_db(db)
     yield db, Employee
 
 @pytest.mark.asyncio
 @pytest.fixture()
 async def loaded_database_and_model_no_cache(empty_database_and_model_no_cache):
     db = empty_database_and_model_no_cache
-    for _ in range(200):
+    for i in range(200):
         employee = Employee(**json.loads(
         f"""
   {{
-    "id": "abcd{time.time()}",
+    "employee_id": "abcd{i}",
     "employee_info": {{
       "ssn": "1234",
       "first_name": "joe",
@@ -121,16 +139,16 @@ async def loaded_database_and_model_no_cache(empty_database_and_model_no_cache):
       "city": null,
       "zip": null
     }},
-    "position": {{
-      "id": "1234",
+    "position": [{{
+      "position_id": "1234",
       "name": "manager",
       "department": {{
-        "id": "5678",
+        "department_id": "5678",
         "name": "hr",
         "company": "abc company",
         "is_sensitive": false
       }}
-    }},
+    }}],
     "salary": 0,
     "is_employed": true,
     "date_employed": null
@@ -145,13 +163,13 @@ async def loaded_database_and_model_no_cache(empty_database_and_model_no_cache):
 @pytest.fixture()
 async def loaded_database_and_model_with_cache(database_with_cache):
     db = database_with_cache
-    for _ in range(800):
+    for i in range(20):
         employee = Employee(**json.loads(
         f"""
   {{
-    "id": "abcd{time.time()}",
+    "employee_id": "abcd{time.time()}",
     "employee_info": {{
-      "ssn": "1234",
+      "ssn": "{i}1234",
       "first_name": "joe",
       "last_name": "last",
       "address": "123 lane",
@@ -159,16 +177,16 @@ async def loaded_database_and_model_with_cache(database_with_cache):
       "city": null,
       "zip": null
     }},
-    "position": {{
-      "id": "1234",
+    "position": [{{
+      "position_id": "1234",
       "name": "manager",
       "department": {{
-        "id": "5678",
+        "department_id": "5678",
         "name": "hr",
         "company": "abc company",
         "is_sensitive": false
       }}
-    }},
+    }}],
     "salary": 0,
     "is_employed": true,
     "date_employed": null
@@ -322,9 +340,80 @@ def new_model_5():
 
 @pytest.fixture()
 def new_model_6():
-    from example import Data
-    from example_sub import SubData
-    yield Data, SubData
+    yield
+    with open('example_sub.py', 'w') as e:
+        e.write(f"""
+# {time.time()}
+import uuid
+from pydantic import BaseModel
+
+def get_uuid():
+    return str(uuid.uuid4())
+
+class SubData(BaseModel):
+    a: int = 1
+    b: float = 1.0
+
+""")
+    with open('example.py', 'w') as e:
+        e.write(f"""
+from typing import Optional
+from pydbantic import DataBaseModel, PrimaryKey, Default
+from example_sub import get_uuid, SubData
+
+class Related(DataBaseModel):
+    f: str = PrimaryKey(default=get_uuid)
+    g: str = 'abcd1234'
+
+class Data(DataBaseModel):
+    a: int
+    b_new: float
+    c: str
+    d: list
+    e: str = PrimaryKey(default=get_uuid)
+    i: str
+    sub: SubData = None
+    related: Optional[Related] = None
+""")
+
+@pytest.fixture()
+def new_model_7():
+    from example import Data, SubData, Related
+    yield Data, SubData, Related
+    with open('example_sub.py', 'w') as e:
+        e.write(f"""
+# {time.time()}
+import uuid
+from pydantic import BaseModel
+
+def get_uuid():
+    return str(uuid.uuid4())
+
+class SubData(BaseModel):
+    a: int = 1
+    b: float = 1.0
+
+""")
+    with open('example.py', 'w') as e:
+        e.write(f"""
+
+from pydbantic import DataBaseModel, PrimaryKey, Default
+from example_sub import get_uuid, SubData
+
+class Related(DataBaseModel):
+    f: str = PrimaryKey(default=get_uuid)
+    g: str = 'abcd1234'
+
+class Data(DataBaseModel):
+    a: int
+    b_new: float
+    c: str
+    d: list
+    e: str = PrimaryKey(default=get_uuid)
+    i: str
+    sub: SubData = None
+    related: Optional[Related] = None
+""")
 
 
 def endpoint_router():
@@ -335,8 +424,8 @@ def endpoint_router():
     
     return router
 
-@pytest.mark.asyncio
-@pytest.fixture
+@pytest.mark.asyncio()
+@pytest.fixture()
 async def fastapi_app_with_loaded_database(loaded_database_and_model):
     app = FastAPI()
 
@@ -348,6 +437,7 @@ async def fastapi_app_with_loaded_database(loaded_database_and_model):
 
     @app.get('/employees')
     async def view_employees():
-        return await Employee.select('*')
-    
+        employees = await Employee.all()
+        return employees
+
     return app
