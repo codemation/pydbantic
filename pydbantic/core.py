@@ -1,4 +1,5 @@
 import asyncio
+from http.client import REQUEST_URI_TOO_LONG
 from pydantic.fields import PrivateAttr
 from sqlalchemy.sql.elements import UnaryExpression
 from sqlalchemy.sql.expression import delete
@@ -563,7 +564,6 @@ class DataBaseModel(BaseModel):
                         f'{name}_{primary_key}': local_value, 
                         f'{foreign_name}_{foreign_primary_key}': foreign_primary_key_value
                     }
-
                     link_insert = database.execute(link_table.insert(), link_values)
                     link_chain.append(link_insert)
 
@@ -576,6 +576,7 @@ class DataBaseModel(BaseModel):
                                 },
                         )
                         if exists == 0:
+
                             foreign_model = foreign_type(**v)
                             link_chain.extend(await foreign_model.save(return_links=True))
 
@@ -584,16 +585,14 @@ class DataBaseModel(BaseModel):
                 # delete links between items not in fk_values
 
                 if update and fk_values:
-                    link_chain.append(
-                        database.execute(
-                            delete(link_table).where(
-                                and_(
-                                    link_table.c[f'{name}_{primary_key}']==local_value,
-                                    link_table.c[f'{foreign_type.__name__}_{foreign_primary_key}'].not_in(fk_values)
-                                )
-                            )
+                    #breakpoint()
+                    remove_deleted = delete(link_table).where(
+                        and_(
+                            link_table.c[f'{name}_{primary_key}']==local_value,
+                            link_table.c[f'{foreign_type.__name__}_{foreign_primary_key}'].not_in(fk_values)
                         )
                     )
+                    result = await database.execute(remove_deleted)
                 
                 # remove existing references, if any, to match removed
                 if update and not fk_values:
@@ -624,7 +623,7 @@ class DataBaseModel(BaseModel):
         )
         if count == 0:
             return await self.insert(return_links=return_links)
-        print(f"{self.__class__.__name__} - updating")
+        
         await self.update()
 
         if return_links:
@@ -859,6 +858,7 @@ class DataBaseModel(BaseModel):
             session_query = session_query.add_columns(*[c for c in table.c])
             tables_to_select.append((table, cls, column_ref, model_ref))
         models_selected.add(cls.__name__)
+        models_selected.add(link_table.name)
 
         for foreign_model, column_ref in foreign_models:
             if foreign_model.__name__ in models_selected:
@@ -1306,6 +1306,8 @@ class DataBaseModel(BaseModel):
         self.__class__.get_table()
 
         table_name = self.__class__.__name__
+        database = self.__metadata__.database
+
         primary_key = self.__metadata__.tables[table_name]['primary_key']
 
         if not to_update:
@@ -1332,9 +1334,11 @@ class DataBaseModel(BaseModel):
             await self.__metadata__.database.execute(query, to_update)
         if links:
             try:
-                await asyncio.gather(*[asyncio.shield(l) for l in links])
+                results = await asyncio.gather(*[asyncio.shield(l) for l in links], return_exceptions=True)
             except Exception as e:
-                print(repr(e))
+                pass
+
+                
 
             
     async def delete(self) -> NoneType:
