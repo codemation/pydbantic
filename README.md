@@ -5,10 +5,11 @@
 [![Documentation Status](https://readthedocs.org/projects/pydbantic/badge/?version=latest)](https://pydbantic.readthedocs.io/en/latest/?badge=latest) [![PyPI version](https://badge.fury.io/py/pydbantic.svg)](https://badge.fury.io/py/pydbantic)[![Unit & Integration Tests](https://github.com/codemation/pydbantic/actions/workflows/package.yaml/badge.svg)](https://github.com/codemation/pydbantic/actions/workflows/package.yaml)
 
 ## Key Features
-- Integrated Redis Caching Support
 - Automatic Migration on Schema Changes
 - Flexible Data Types
 - One Model for type validation & database access
+- Dynamic Model Relationships
+- Integrated Redis Caching Support
 
 ## Documentation
 [https://pydbantic.readthedocs.io/en/latest/](https://pydbantic.readthedocs.io/en/latest/)
@@ -24,20 +25,21 @@ $ pip install pydbantic[postgres]
 ## Basic Usage - Model
 
 ```python
-from typing import List, Optional
-from pydantic import BaseModel, Field
+from typing import List, Optional, Union
 from pydbantic import DataBaseModel, PrimaryKey
 
 class Department(DataBaseModel):
-    id: str = PrimaryKey()
+    department_id: str = PrimaryKey()
     name: str
     company: str
     is_sensitive: bool = False
+    positions: List[Optional['Positions']] = []  # One to Many
 
 class Positions(DataBaseModel):
-    id: str = PrimaryKey()
+    position_id: str = PrimaryKey()
     name: str
-    department: Department
+    department: Department = None               # One to One mapping 
+    employees: List[Optional['Employee']] = []  # One to Many
 
 class EmployeeInfo(DataBaseModel):
     ssn: str = PrimaryKey()
@@ -47,11 +49,13 @@ class EmployeeInfo(DataBaseModel):
     address2: Optional[str]
     city: Optional[str]
     zip: Optional[int]
+    new: Optional[str]
+    employee: Optional[Union['Employee', dict]] = None # One to One 
 
 class Employee(DataBaseModel):
-    id: str = PrimaryKey()
-    employee_info: EmployeeInfo
-    position: Positions
+    employee_id: str = PrimaryKey()
+    employee_info: Optional[EmployeeInfo] = None  # One to One
+    position: List[Optional[Positions]] = []      # One to Many 
     salary: float
     is_employed: bool
     date_employed: Optional[str]
@@ -67,7 +71,12 @@ from models import Employee
 async def main():
     db = await Database.create(
         'sqlite:///test.db',
-        tables=[Employee]
+        tables=[
+            Employee,
+            EmployeeInfo,
+            Positions,
+            Department
+        ]
     )
 
 if __name__ == '__main__':
@@ -75,6 +84,9 @@ if __name__ == '__main__':
 ```
 
 ## Model Usage
+
+Import and use the models where you need them. As long as DB as already been created,
+the Models can accesss the & Use the connected DB 
 
 ```python
 from models import (
@@ -84,26 +96,46 @@ from models import (
     Department
 )
 
-async def main():
-    # db creation is above
+```
 
+### Model - Creation
+
+```python
     # create department 
-    hr_department = Department(
+    hr_department = await Department.create(
+        id='d1234',
+        name='hr'
+        company='abc-company',
+        is_sensitive=True,
+    )
+```
+Via instance using insert or save
+
+```python
+    hr_department = Department.create(
         id='d1234',
         name='hr'
         company='abc-company',
         is_sensitive=True,
     )
 
+    await hr_department.insert()
+    await hr_department.save()
+```
+
+Insert with related models 
+
+```python
+
     # create a Position in Hr Department
-    hr_manager = Position(
+    hr_manager = Position.create(
         id='p1234',
         name='manager',
         department=hr_department
     )
     
-    # create information on an hr employee
-    hr_emp_info = EmployeeInfo(
+    # create instance on an hr employee
+    hr_emp_info = EmployeeInfo.create(
         ssn='123-456-789',
         first_name='john',
         last_name='doe',
@@ -113,20 +145,13 @@ async def main():
     )
 
     # create an hr employee 
-    hr_employee = Employee(
+    hr_employee = await Employee.create(
         id='e1234',
         employee_info=hr_emp_info,
         position=hr_manager,
         is_employed=True,
         date_employed='1970-01-01'
     )
-
-```
-Note: At this point only the models have been created, but nothing is saved in the database yet.
-
-```python
-    # save to database
-    await hr_employee.save()
 ```
 
 ### Filtering
@@ -142,6 +167,8 @@ Note: At this point only the models have been created, but nothing is saved in t
     )
 
 ```
+See also filtering [operators](https://pydbantic.readthedocs.io/en/latest/model-usage/#model-usage-query-filtering)
+
 
 ### Deleting
 ```python
@@ -163,12 +190,13 @@ Note: At this point only the models have been created, but nothing is saved in t
         await manager.update() # or manager.save()
 ```
 
-Save results in a new row created in `Employee` table as well as the related `EmployeeInfo`, `Position`, `Department` tables if non-existing.  
+`.save()` results in a new row created in `Employee` table as well as the related `EmployeeInfo`, `Position`, `Department` tables if not yet created.  s
 
 ## What is pydbantic
 `pydbantic` was built to solve some of the most common pain developers may face working with databases. 
 - migrations 
 - model creation / managment
+- dynamic relationships
 - caching
 
 `pydbantic` believes that related data should be stored together, in the shape the developer plans to use
@@ -260,12 +288,12 @@ def get_uuid4():
     return str(uuid4())
 
 class Coordinate(DataBaseModel):
-    time: str = PrimaryKey(default=time_now)
-    latitude: float
-    longitude: float
+    id: str = PrimaryKey(default=get_uuid4)
+    lat_long: tuple
+    journeys: List[Optional["Journey"]] = []
 
 class Journey(DataBaseModel):
     trip_id: str = PrimaryKey(default=get_uuid4)
-    waypoints: List[Optional[Coordinate]]
+    waypoints: List[Optional[Coordinate]] = []
 
 ```
