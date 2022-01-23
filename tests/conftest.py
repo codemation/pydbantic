@@ -328,15 +328,8 @@ class Data(DataBaseModel):
 def new_model_5():
     from example import Data, SubData
     yield Data, SubData
-    with open('example_sub.py', 'w') as e:
-        e.write(f"""
-## Nothing to see here
-
-""")
-    with open('example.py', 'w') as e:
-        e.write(f"""
-## Nothing to see here
-""")
+    os.remove('example_sub.py')
+    os.remove('example.py')
 
 @pytest.fixture()
 def new_model_6():
