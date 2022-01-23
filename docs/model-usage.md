@@ -94,7 +94,7 @@ managers = await Employee.filter(
 )
 ```
 ##### Filtering - Operators
-`DataBaseModel`s can be filtered using `>`, `>=`, `<=`, `<`, `==`, and a `.matches([value1, value2, value3])` 
+`DataBaseModel`s can be filtered using `>`, `>=`, `<=`, `<`, `==`, and a `.inside([value1, value2, value3])` 
 
 ```python
 # conditionals
@@ -104,7 +104,7 @@ mid_salary_employees = await Employees.filter(
 )
 
 mid_salary_employees = await Employees.filter(
-    Employees.salary.matches([30000, 40000])
+    Employees.salary.inside([30000, 40000])
 )
 
 mid_salary_employees = await Employees.filter(
@@ -115,7 +115,7 @@ mid_salary_employees = await Employees.filter(
 mid_salary_employees = await Employees.filter(
     Employees.OR(
         Employees.salary >= 30000,
-        Employees.salary.matches([20000, 40000])
+        Employees.salary.inside([20000, 40000])
     ),
     is_employed = True
 )
