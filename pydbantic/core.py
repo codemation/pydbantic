@@ -1,5 +1,4 @@
 import asyncio
-from http.client import REQUEST_URI_TOO_LONG
 from pydantic.fields import PrivateAttr
 from sqlalchemy.sql.elements import UnaryExpression
 from sqlalchemy.sql.expression import delete
@@ -11,6 +10,8 @@ import sqlalchemy
 from sqlalchemy import select, func, or_, and_
 from sqlalchemy.orm import relationship, Session, Query
 from pickle import dumps, loads
+import imp
+import sys
 
 class _Generic(BaseModel):
     pass
@@ -47,26 +48,6 @@ class RelationshipRef(BaseModel):
 def get_model_getter(model, primary_key, primary_key_value):
     return lambda : model.get(**{primary_key: primary_key_value})
 
-def resolve_missing_attribute(missing_error: str):
-    try:
-        missing_attr = ''.join(
-            missing_error.split("Can't get attribute")[1].split('on <module')
-        ).split('from')[0].split(' ')[1][1:-1]
-
-        missing_mod = ''.join(
-            missing_error.split("Can't get attribute")[1].split('on <module')
-        ).split('from')[0].split(' ')[3][1:-1]
-        mod = __import__(missing_mod)
-        setattr(mod, missing_attr, _Generic)
-    except Exception:
-        pass
-
-def deserialize(data):
-    try:
-        return loads(data)
-    except AttributeError as e:
-        resolve_missing_attribute(repr(e))
-        return loads(data)
 
 class BaseMeta:
     translations: dict = {
@@ -172,7 +153,20 @@ class DataBaseModelAttribute:
             self.column == self.process_value(value),
             (values,)
         )
-
+    def inside(self, choices: List[Any]) -> DataBaseModelCondition:
+        choices = [self.process_value(value) for value in choices]
+        return DataBaseModelCondition(
+            f"{self.name} in {choices}",
+            self.column.in_(choices),
+            tuple(choices)
+        )
+    def not_inside(self, choices: List[Any]) -> DataBaseModelCondition:
+        choices = [self.process_value(value) for value in choices]
+        return DataBaseModelCondition(
+            f"{self.name} not in {choices}",
+            self.column.not_in(choices),
+            tuple(choices)
+        )
     def matches(self, choices: List[Any]) -> DataBaseModelCondition:
         choices = [self.process_value(value) for value in choices]
         return DataBaseModelCondition(
@@ -213,6 +207,48 @@ class DataBaseModel(BaseModel):
         elif issubclass(field['type'], DataBaseModel):
             return field['type']
         return database_model
+
+    @classmethod
+    def resolve_missing_module(cls, missing_error):
+        cls.__metadata__.database.log.warning(f"detected {missing_error} - attempting to self correct")
+        missing_module = missing_error[38:-3]
+        module = imp.new_module(missing_module)
+        sys.modules[missing_module] = module
+
+    @classmethod 
+    def resolve_missing_attribute(cls, missing_error: str):
+        cls.__metadata__.database.log.warning(f"detected {missing_error} - attempting to self correct")
+        try:
+            missing_attr = ''.join(
+                missing_error.split("Can't get attribute")[1].split('on <module')
+            ).split('from')[0].split(' ')[1][1:-1]
+
+            missing_mod = ''.join(
+                missing_error.split("Can't get attribute")[1].split('on <module')
+            ).split('from')[0].split(' ')[3][1:-4]
+            
+            if not missing_mod in sys.modules:
+                mod = imp.new_module(missing_mod)
+            else:
+                mod = sys.modules[missing_mod]
+            setattr(mod, missing_attr, _Generic)
+        except Exception:
+            pass
+    
+    @classmethod
+    def deserialize(cls, data):
+        try:
+            return loads(data)
+        except AttributeError as e:
+            cls.resolve_missing_attribute(repr(e))
+        except ModuleNotFoundError as e:
+            cls.resolve_missing_module(repr(e))
+
+        try:
+            return loads(data)
+        except AttributeError as e:
+            cls.resolve_missing_attribute(repr(e))
+        return loads(data)
 
     @classmethod
     async def refresh_models(cls):
@@ -585,7 +621,6 @@ class DataBaseModel(BaseModel):
                 # delete links between items not in fk_values
 
                 if update and fk_values:
-                    #breakpoint()
                     remove_deleted = delete(link_table).where(
                         and_(
                             link_table.c[f'{name}_{primary_key}']==local_value,
@@ -972,7 +1007,7 @@ class DataBaseModel(BaseModel):
                     expected_type = cls.__metadata__.tables[cls.__name__]['column_map'][k][1]
                     row_result = result[result_ind]
                     if serialized:
-                        row_result = deserialize(row_result)
+                        row_result = cls.deserialize(row_result)
                             
                         if expected_type in {set, list, tuple}:
                             row_result = expected_type(row_result)
@@ -998,7 +1033,7 @@ class DataBaseModel(BaseModel):
                         row_result = result[result_ind]
 
                         if serialized:
-                            row_result = deserialize(row_result) if not row_result is None else None
+                            row_result = cls.deserialize(row_result) if not row_result is None else None
                             row_results[k] = row_result
                                 
                         elif is_array:
@@ -1205,7 +1240,7 @@ class DataBaseModel(BaseModel):
                     is_array = cls.__metadata__.tables[cls.__name__]['column_map'][k][3]
                     row_result = result[result_ind]
                     if serialized:
-                        row_result = deserialize(row_result)
+                        row_result = cls.deserialize(row_result)
                         row_results[k] = row_result
                         decoded_results[result_key][k] = row_result
 
@@ -1230,7 +1265,7 @@ class DataBaseModel(BaseModel):
                         row_result = result[result_ind]
 
                         if serialized:
-                            row_result = deserialize(row_result) if not row_result is None else None
+                            row_result = cls.deserialize(row_result) if not row_result is None else None
 
                             if isinstance(row_result, list) and is_array:
                                 row_results[k] = row_result
