@@ -66,7 +66,7 @@ class Employee(DataBaseModel):
 ```python
 import asyncio
 from pydbantic import Database
-from models import Employee
+from models import Employee, EmployeeInfo, Positions, Department
 
 async def main():
     db = await Database.create(
