@@ -267,7 +267,17 @@ class Database():
                     is_migration_required = True
                     migration_blame.append(f"New Column: {field}")
                     continue
-
+                
+                try:
+                    issubclass(existing_model[field]['type'], DataBaseModel)
+                except TypeError:
+                    if not table.__fields__[field].type_ == existing_model[field]['type']:
+                        migration_blame.append(
+                            f"Modified Column: {field} - from {existing_model[field]['type']} to {table.__fields__[field].type_}"
+                        )
+                        is_migration_required = True
+                    continue
+                    
                 if issubclass(existing_model[field]['type'], DataBaseModel):
                     current_model = DataBaseModel.check_if_subtype({"type": table.__fields__[field].type_})
                     if not current_model == existing_model[field]['type']:
@@ -342,7 +352,11 @@ class Database():
 
                 table.__metadata__.tables[table.__name__]['table'] = old_table
 
-        
+            if not 'primary_key' in meta_tables[table.__name__].model:
+                meta_tables[table.__name__].model['primary_key'] = [
+                    *meta_tables[table.__name__].model.keys()
+                ][0]
+
             migration_rows = await table.select(
                 *to_select, 
                 alias={v: k for k,v in aliases.items()},
@@ -364,6 +378,9 @@ class Database():
                 )
 
             table.__metadata__.tables[table.__name__]['table'] = old_table
+            
+            # this is needed for tables migrated from 1.3.X -> 1.4.X
+            [setattr(c, 'identity', None) for c in meta_tables[table.__name__].columns] 
 
             migration_table = sqlalchemy.Table(
                 table.__name__ + f'_{int(time.time())}',

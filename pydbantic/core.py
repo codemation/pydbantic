@@ -216,7 +216,7 @@ class DataBaseModel(BaseModel):
         sys.modules[missing_module] = module
 
     @classmethod 
-    def resolve_missing_attribute(cls, missing_error: str):
+    def resolve_missing_attribute(cls, missing_error: str, expected_type=None):
         cls.__metadata__.database.log.warning(f"detected {missing_error} - attempting to self correct")
         try:
             missing_attr = ''.join(
@@ -231,24 +231,30 @@ class DataBaseModel(BaseModel):
                 mod = imp.new_module(missing_mod)
             else:
                 mod = sys.modules[missing_mod]
-            setattr(mod, missing_attr, _Generic)
-        except Exception:
-            pass
+            
+            if expected_type:
+                (missing_class, ) = [
+                    v[1] for _, v in cls.__metadata__.tables[expected_type]['column_map'].items()
+                    if hasattr(v[1], '__name__') and v[1].__name__ == missing_attr
+                ]
+            else:
+                missing_class = cls.__metadata__.tables[cls.__name__]['column_map'][missing_attr][1]
+            
+            setattr(mod, missing_attr, missing_class)
+        except Exception as e:
+            raise f"Failed to resolve {missing_error} with expected_type of {expected_type}"
     
     @classmethod
-    def deserialize(cls, data):
-        try:
-            return loads(data)
-        except AttributeError as e:
-            cls.resolve_missing_attribute(repr(e))
-        except ModuleNotFoundError as e:
-            cls.resolve_missing_module(repr(e))
-
-        try:
-            return loads(data)
-        except AttributeError as e:
-            cls.resolve_missing_attribute(repr(e))
-        return loads(data)
+    def deserialize(cls, data, expected_type = None):
+        while True:
+            try:
+                return loads(data)
+            except AttributeError as e:
+                cls.resolve_missing_attribute(repr(e), expected_type=expected_type)
+            except ModuleNotFoundError as e:
+                cls.resolve_missing_module(repr(e))
+            except Exception as e:
+                raise e
 
     @classmethod
     async def refresh_models(cls):
@@ -1007,8 +1013,7 @@ class DataBaseModel(BaseModel):
                     expected_type = cls.__metadata__.tables[cls.__name__]['column_map'][k][1]
                     row_result = result[result_ind]
                     if serialized:
-                        row_result = cls.deserialize(row_result)
-                            
+                        row_result = cls.deserialize(row_result, expected_type=expected_type)
                         if expected_type in {set, list, tuple}:
                             row_result = expected_type(row_result)
 
@@ -1031,9 +1036,13 @@ class DataBaseModel(BaseModel):
                         serialized = cls.__metadata__.tables[f_model.__name__]['column_map'][k][2]
                         is_array = cls.__metadata__.tables[f_model.__name__]['column_map'][k][3]
                         row_result = result[result_ind]
+                        expected_type = cls.__metadata__.tables[f_model.__name__]['column_map'][k][1]
 
                         if serialized:
-                            row_result = cls.deserialize(row_result) if not row_result is None else None
+                            row_result = cls.deserialize(
+                                row_result,
+                                expected_type=expected_type
+                            ) if not row_result is None else None
                             row_results[k] = row_result
                                 
                         elif is_array:
@@ -1239,8 +1248,14 @@ class DataBaseModel(BaseModel):
                     serialized = cls.__metadata__.tables[cls.__name__]['column_map'][k][2]
                     is_array = cls.__metadata__.tables[cls.__name__]['column_map'][k][3]
                     row_result = result[result_ind]
+                    expected_type = cls.__metadata__.tables[cls.__name__]['column_map'][k][1]
                     if serialized:
-                        row_result = cls.deserialize(row_result)
+                        if cls.__name__ == 'TableMeta':
+                            expected_type = cls.__metadata__.tables[result[0]]['model'].__name__
+                        row_result = cls.deserialize(
+                            row_result,
+                            expected_type=expected_type
+                        )
                         row_results[k] = row_result
                         decoded_results[result_key][k] = row_result
 
@@ -1263,9 +1278,12 @@ class DataBaseModel(BaseModel):
                         serialized = cls.__metadata__.tables[f_model.__name__]['column_map'][k][2]
                         is_array = cls.__metadata__.tables[f_model.__name__]['column_map'][k][3]
                         row_result = result[result_ind]
-
+                        expected_type = cls.__metadata__.tables[f_model.__name__]['column_map'][k][1]
                         if serialized:
-                            row_result = cls.deserialize(row_result) if not row_result is None else None
+                            row_result = cls.deserialize(
+                                row_result,
+                                expected_type=expected_type
+                            ) if not row_result is None else None
 
                             if isinstance(row_result, list) and is_array:
                                 row_results[k] = row_result
