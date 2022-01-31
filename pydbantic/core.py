@@ -960,10 +960,10 @@ class DataBaseModel(BaseModel):
         if where:
             sel, values = cls.where(sel, where)
 
-        sel, values = cls.check_limit_offset(sel, values, limit, offset)
-
         if order_by is not None:
             sel = sel.order_by(order_by)
+
+        sel, values = cls.check_limit_offset(sel, values, limit, offset)
 
         results = await database.fetch(sel.statement, models_selected, values)
         
