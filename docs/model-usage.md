@@ -6,7 +6,7 @@
 ```python
 from typing import List, Optional
 from pydantic import BaseModel, Field
-from pydbantic import DataBaseModel, PrimaryKey
+from pydbantic import DataBaseModel, PrimaryKey, Unique
 
 class Coordinates(BaseModel):
 
@@ -30,6 +30,7 @@ class EmployeeInfo(DataBaseModel):
 
 class Employee(DataBaseModel):
     id: str = PrimaryKey()
+    bio_id: str = Unique()
     employee_info: EmployeeInfo
     position: Positions
     salary: float

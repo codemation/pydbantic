@@ -1,7 +1,7 @@
 import time
 import pytest
 from pydbantic import Database
-from tests.models import Employee, Positions, Department
+from tests.models import Employee, EmployeeInfo, Positions, Department
 
 @pytest.mark.asyncio
 async def test_database(db_url):
@@ -40,6 +40,7 @@ async def test_database(db_url):
     
     employee = Employee(**new_employee)
     await employee.insert()
+    emp_info = await EmployeeInfo.filter(bio_id=employee.employee_info.bio_id)
 
     result = await Employee.select('*', where={'employee_id': employee.employee_id})
 
@@ -57,16 +58,28 @@ async def test_database(db_url):
         i = int(time.time()) + i
         position = new_employee['position'][0]
         position['employee_id'] = f'p{i}'
-        row = Employee(
+        emp = Employee(
             employee_id=f'a{i}',
             position=[position],
             is_employed=True, 
             salary=new_employee['salary'], 
             employee_info=new_employee['employee_info'],
         )
-        await row.insert()
-    employees = await Employee.select('*', where={'employee_id': row.employee_id})
-    
+        await emp.insert()
+        emp = await Employee.get(employee_id=f'a{i}')
+        emp_info: EmployeeInfo = await EmployeeInfo.filter(bio_id=emp.employee_info.bio_id)
+        assert len(emp_info) == 1
+
+        try:
+            emp_info = emp_info[0]
+            # this should fail due to unique constraint on bio_id
+            emp_info.ssn = 1234567890
+            await emp_info.save()
+
+            assert False, f"This should have thrown an Integrity Exception for Unique field"
+        except Exception:
+            pass
+        
     filtered_employee = await Employee.filter(is_employed=True)
     assert len(filtered_employee) > 0
 

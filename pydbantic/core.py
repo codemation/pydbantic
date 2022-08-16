@@ -71,6 +71,11 @@ def Default(default=...):
         return Field(default_factory=default)
     return Field(default=default)
 
+def Unique(default=...):
+    if isinstance(default, type(lambda x: x)):
+        return Field(default_factory=default, unique=True)
+    return Field(unique=True)
+
 class DataBaseModelCondition:
     def __init__(
         self, 
@@ -420,6 +425,7 @@ class DataBaseModel(BaseModel):
             include = [f for f in cls.__fields__]
 
         primary_key = None
+        unique_keys = set()
         array_fields = set()
 
         field_properties = {}
@@ -442,6 +448,8 @@ class DataBaseModel(BaseModel):
                 if primary_key:
                     raise Exception(f"Duplicate Primary Key Specified for {cls.__name__}")
                 primary_key = field_property
+            if 'unique' in config:
+                unique_keys.add(field_property)
             if 'type' in config and config['type'] == 'array' and not primary_key == field_property:
                 array_fields.add(field_property)
 
@@ -525,7 +533,8 @@ class DataBaseModel(BaseModel):
                         *column_type_config['args'], 
                         **column_type_config['kwargs']
                     ),
-                    primary_key = field['name'] == primary_key
+                    primary_key = field['name'] == primary_key,
+                    unique = field['name'] in unique_keys,
                 )
             )
 
