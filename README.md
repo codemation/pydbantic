@@ -26,11 +26,11 @@ $ pip install pydbantic[postgres]
 
 ```python
 from typing import List, Optional, Union
-from pydbantic import DataBaseModel, PrimaryKey
+from pydbantic import DataBaseModel, PrimaryKey, Unique
 
 class Department(DataBaseModel):
     department_id: str = PrimaryKey()
-    name: str
+    name: str = Unique()
     company: str
     is_sensitive: bool = False
     positions: List[Optional['Positions']] = []  # One to Many
