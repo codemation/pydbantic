@@ -1,24 +1,28 @@
 from uuid import uuid4
 from datetime import datetime
 from typing import List, Optional, Union
-from pydbantic import DataBaseModel, PrimaryKey
+from pydbantic import DataBaseModel, PrimaryKey, Unique
+
+def uuid_str():
+    return str(uuid4())
 
 class Department(DataBaseModel):
-    department_id: str 
+    department_id: str = PrimaryKey()
     name: str
     company: str
     is_sensitive: bool = False
     positions: List[Optional['Positions']] = []
 
 class Positions(DataBaseModel):
-    position_id: str
+    position_id: str = PrimaryKey()
     name: str
     department: Department = None
     employees: List[Optional['Employee']] = []
 
 class EmployeeInfo(DataBaseModel):
     #__renamed__= [{'old_name': 'first_name', 'new_name': 'first_names'}]
-    ssn: str
+    ssn: str = PrimaryKey()
+    bio_id: str = Unique(default=uuid_str)
     first_name: str
     last_name: str
     address: str
