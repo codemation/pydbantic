@@ -70,11 +70,16 @@ async def test_database(db_url):
         emp_info: EmployeeInfo = await EmployeeInfo.filter(bio_id=emp.employee_info.bio_id)
         assert len(emp_info) == 1
 
-        emp_info = emp_info[0]
-        # this should fail due to unique constraint on bio_id
-        emp_info.ssn = 1234567890
-        await emp_info.save()
-    
+        try:
+            emp_info = emp_info[0]
+            # this should fail due to unique constraint on bio_id
+            emp_info.ssn = 1234567890
+            await emp_info.save()
+
+            assert False, f"This should have thrown an Integrity Exception for Unique field"
+        except Exception:
+            pass
+        
     filtered_employee = await Employee.filter(is_employed=True)
     assert len(filtered_employee) > 0
 
