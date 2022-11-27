@@ -1,8 +1,11 @@
-import os
 from builtins import Exception
 import time
 import asyncio
 import sqlalchemy
+
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
+
 import uuid
 from copy import deepcopy
 from pickle import dumps
@@ -23,7 +26,8 @@ class Database():
         redis_url: str = None,
         logger: logging.Logger = None,
         debug: bool = False,
-        testing: bool = False
+        testing: bool = False,
+        use_alembic: bool = False
     ):
         self.connection_map = {}
         self.DB_URL = db_url
@@ -78,7 +82,10 @@ class Database():
         if self.testing:
             self.testing_setup()
 
-        self.metadata.create_all(self.engine)
+        # allow disabling of automatic migrations to allow
+        # integration with alembic
+        if not use_alembic:
+            self.metadata.create_all(self.engine)
 
     def get_translated_column_type(self, input_type, primary_key: bool = False):
         """
@@ -203,7 +210,6 @@ class Database():
         """
         compare existing table schema's to current, migrate if required
         """
-
         reservation = str(uuid.uuid4())
 
         # checkout database for migrations
@@ -264,8 +270,29 @@ class Database():
             # check for new columns
             for field in table.__fields__:
                 if not field in existing_model:
-                    is_migration_required = True
-                    migration_blame.append(f"New Column: {field}")
+                    if 'sqlite' in self.DB_URL:
+                        is_migration_required = True
+                        migration_blame.append(f"New Column: {field}")
+                        continue
+
+                    conn = self.engine.connect()
+                    conn.dialect = self.engine.dialect
+                    ctx = MigrationContext.configure(conn)
+                    op = Operations(ctx)
+                    new_column = table.__metadata__.tables[table.__name__]['table'].columns[field]
+                    result = op.add_column(table.__name__, new_column)
+
+                    await self.update_table_meta(table, existing=True)
+
+                    new_table = sqlalchemy.Table(
+                        table.__name__,
+                        self.metadata,
+                        *table.convert_fields_to_columns()[0],
+                        extend_existing=True
+                    )
+                    table.__metadata__.tables[table.__name__]['table'] = new_table
+
+                    print(f"New Column: {field} in {table.__name__} {result}")
                     continue
                 
                 try:
@@ -518,6 +545,7 @@ class Database():
             await self.cache.invalidate(query.table.name)
         
         self.log.debug(f"database query: {query} - values {values}")
+        print(f"database query: {query} - values {values}")
 
         async with self as conn:
             return await conn.execute(query=query, values=values)
@@ -528,7 +556,7 @@ class Database():
             await self.cache.invalidate(query.table.name)
             
         async with self as conn:
-            return await conn.execute(query=query, values=values)
+            return await conn.execute_many(query=query, values=values)
     
     async def fetch(self, query, table_name, values=None):
         """get a row from table matching query or pull from cache if enabled
@@ -559,7 +587,8 @@ class Database():
         redis_url: str = None,
         logger: logging.Logger = None,
         debug: bool = False,
-        testing: bool = False
+        testing: bool = False,
+        use_alembic: bool = False
     ):
 
         cache_config = {'cache_enabled': cache_enabled}
@@ -567,16 +596,18 @@ class Database():
             cache_config['redis_url'] = redis_url
 
         new_db = cls(
-            DB_URL,
+            DB_URL, 
             tables,
             logger=logger,
             debug=debug,
             testing=testing,
+            use_alembic=use_alembic,
             **cache_config
         )
 
-        async with new_db:
-            await new_db.compare_tables_and_migrate()
+        if not use_alembic:
+            async with new_db:
+                await new_db.compare_tables_and_migrate()
         
         return new_db
 
