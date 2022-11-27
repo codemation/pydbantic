@@ -61,20 +61,57 @@ class BaseMeta:
     }
     tables: dict = {}
 
-def PrimaryKey(default=..., ):
-    if isinstance(default, type(lambda x: x)):
-        return Field(default_factory=default, primary_key=True)
-    return Field(default=default, primary_key=True)
+def PrimaryKey(default=..., sqlalchemy_type = None):
+    return get_field_config(
+        default=default,
+        primary_key=True,
+        sqlalchemy_type=sqlalchemy_type
+    )
 
-def Default(default=...):
-    if isinstance(default, type(lambda x: x)):
-        return Field(default_factory=default)
-    return Field(default=default)
+def Default(default=..., sqlalchemy_type = None):
+    return get_field_config(
+        default=default,
+        sqlalchemy_type=sqlalchemy_type
+    )
 
-def Unique(default=...):
+def Unique(default=..., sqlalchemy_type = None):
+    return get_field_config(
+        default=default,
+        unique=True,
+        sqlalchemy_type=sqlalchemy_type
+    )
+
+def ModelField(
+    default=...,
+    primary_key: bool = None,
+    unique: bool = None,
+    sqlalchemy_type = None
+):
+    return get_field_config(
+        default=default,
+        primary_key=primary_key,
+        unique=unique,
+        sqlalchemy_type=sqlalchemy_type
+    )
+
+def get_field_config(
+    default=...,
+    primary_key: bool = None,
+    unique: bool = None,
+    sqlalchemy_type = None
+):
+    config = {}
     if isinstance(default, type(lambda x: x)):
-        return Field(default_factory=default, unique=True)
-    return Field(unique=True)
+        config['default_factory'] = default
+    if primary_key is not None:
+        config['primary_key'] = primary_key
+    if unique is not None:
+        config['unique'] = unique
+    if sqlalchemy_type is not None:
+        config['sqlalchemy_type'] = sqlalchemy_type
+
+    return Field(**config)
+
 
 class DataBaseModelCondition:
     def __init__(
@@ -253,7 +290,7 @@ class DataBaseModel(BaseModel):
     def deserialize(cls, data, expected_type = None):
         while True:
             try:
-                return loads(data)
+                return loads(data) if data is not None else None
             except AttributeError as e:
                 cls.resolve_missing_attribute(repr(e), expected_type=expected_type)
             except ModuleNotFoundError as e:
@@ -427,9 +464,10 @@ class DataBaseModel(BaseModel):
         primary_key = None
         unique_keys = set()
         array_fields = set()
+        nullable_feilds = set()
 
         field_properties = {}
-
+        
         try:
             model_schema = cls.schema()
         except TypeError:
@@ -441,6 +479,12 @@ class DataBaseModel(BaseModel):
             field_properties = model_schema['definitions'][cls.__name__]['properties']
         else:
             field_properties = model_schema['properties']
+        
+        
+        requried_fields = model_schema.get('required', [])
+
+        default_fields = {}
+        sqlalchemy_type_config = {}
 
         for field_property, config in field_properties.items():
             
@@ -448,10 +492,21 @@ class DataBaseModel(BaseModel):
                 if primary_key:
                     raise Exception(f"Duplicate Primary Key Specified for {cls.__name__}")
                 primary_key = field_property
+
             if 'unique' in config:
                 unique_keys.add(field_property)
+
             if 'type' in config and config['type'] == 'array' and not primary_key == field_property:
                 array_fields.add(field_property)
+            
+            if 'default' in config:
+                default_fields[field_property] = config['default']
+            
+            if 'sqlalchemy_type' in config:
+                sqlalchemy_type_config[field_property] = config['sqlalchemy_type']
+            
+            if not field_property in requried_fields:
+                nullable_feilds.add(field_property)
 
         if not model_fields:
             model_fields_list = [
@@ -513,10 +568,15 @@ class DataBaseModel(BaseModel):
 
             # get sqlalchemy column type based on field type & if primary_key
             # as well as determine if data should be serialized & de-serialized
-            sqlalchemy_model, serialize = cls.__metadata__.database.get_translated_column_type(
-                field['type'],
-                primary_key = field['name'] == primary_key
-            )
+            if field['name'] not in sqlalchemy_type_config:
+                sqlalchemy_model, serialize = cls.__metadata__.database.get_translated_column_type(
+                    field['type'],
+                    primary_key = field['name'] == primary_key
+                )
+            else:
+                sqlalchemy_model = sqlalchemy_type_config[field['name']]
+                serialize = sqlalchemy_model.__class__ == sqlalchemy.LargeBinary
+
             cls.__metadata__.tables[name]['column_map'][field['name']] = (
                 sqlalchemy_model,
                 field['type'],
@@ -524,7 +584,12 @@ class DataBaseModel(BaseModel):
                 False, #field['name'] in array_fields
             )
             cls.__metadata__.tables[name]['model'] = cls
-
+            server_default = {}
+            if field['name'] in default_fields:
+                server_default['default'] = default_fields[field['name']]
+                if serialize:
+                    server_default['default'] = dumps(server_default['default'])
+                    
             column_type_config = cls.__metadata__.tables[name]['column_map'][field['name']][0]
             columns.append(
                 sqlalchemy.Column(
@@ -532,9 +597,11 @@ class DataBaseModel(BaseModel):
                     column_type_config['column_type'](
                         *column_type_config['args'], 
                         **column_type_config['kwargs']
-                    ),
+                    ) if field['name'] not in sqlalchemy_type_config else sqlalchemy_model,
                     primary_key = field['name'] == primary_key,
                     unique = field['name'] in unique_keys,
+                    nullable = field['name'] in nullable_feilds and field['name'] != primary_key,
+                    **server_default
                 )
             )
 
@@ -1021,9 +1088,16 @@ class DataBaseModel(BaseModel):
                     is_array = cls.__metadata__.tables[cls.__name__]['column_map'][k][3]
                     expected_type = cls.__metadata__.tables[cls.__name__]['column_map'][k][1]
                     row_result = result[result_ind]
+
+                    # allows default value to be used when row_result is None
+                    # if defined, this value is client side only until saved
+                    if not row_result and table.columns[k].default is not None:
+                        row_result = table.columns[k].default.arg
+
                     if serialized:
                         row_result = cls.deserialize(row_result, expected_type=expected_type)
-                        if expected_type in {set, list, tuple}:
+
+                        if row_result and expected_type in {set, list, tuple}:
                             row_result = expected_type(row_result)
 
                     if is_array:
@@ -1400,7 +1474,22 @@ class DataBaseModel(BaseModel):
             except Exception as e:
                 pass
 
-                
+    @classmethod
+    async def delete_many(
+        cls,
+        rows: List[DataBaseModel]
+    ):
+        table = cls.get_table()
+        database = cls.__metadata__.database
+        primary_key = cls.__metadata__.tables[cls.__name__]['primary_key']
+        primary_keys = [
+            getattr(row, primary_key) for row in rows
+        ]
+        primary_key_column: DataBaseModelAttribute = getattr(cls, primary_key)
+        delete_condition: DataBaseModelCondition = primary_key_column.matches(primary_keys)
+
+        query, _ = cls.where(delete(table), {}, delete_condition)
+        return await database.execute(query, None)
 
             
     async def delete(self) -> NoneType:
@@ -1424,6 +1513,38 @@ class DataBaseModel(BaseModel):
         query, _ = self.where(delete(table), {primary_key: getattr(self, primary_key)})
 
         return await database.execute(query, None)
+
+    @classmethod
+    async def insert_many(
+        cls,
+        rows: List[DataBaseModel]
+    ):
+        table = cls.get_table()
+        database = cls.__metadata__.database
+        query = table.insert()
+        data =  [
+            await row.serialize(row.dict(), insert=True) for row in rows
+        ]
+
+        links = []
+        values = [
+            d[0] for d in data
+        ]
+        [
+            links.extend(d[1]) for d in data
+        ]
+        try:
+            await database.execute_many(query, values)
+        except Exception as e:
+            database.log.error(f"error inserting into {table.name} - error: {repr(e)}")
+            for link in links:
+                link.close()
+
+        try:
+            await asyncio.gather(*[asyncio.shield(l) for l in links])
+        except Exception:
+            database.log.exception(f"chain link insertion error")
+
 
     async def insert(
         self, 
