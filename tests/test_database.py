@@ -9,7 +9,8 @@ async def test_database(db_url):
         db_url,
         tables=[Employee, Positions, Department],
         cache_enabled=False,
-        testing=True
+        testing=True,
+        use_alembic=False
     )
     sel = await db.TableMeta.select('*')
 
@@ -90,5 +91,3 @@ async def test_database(db_url):
 
     filtered_employee = await Employee.filter(is_employed=False)
     assert len(filtered_employee) == 1
-    
-    db.metadata.drop_all()
