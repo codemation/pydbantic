@@ -56,6 +56,6 @@ async def test_querying(loaded_database_and_model_with_cache):
     assert manager.employee_id == managers[0].employee_id
 
     ranged_salary = await Employee.filter(
-        Employee.salary.matches([40000, 10000, 30000])
+        Employee.salary.inside([40000, 10000, 30000])
     )
     assert len(ranged_salary) ==1
