@@ -1,10 +1,17 @@
 import time
 import pytest
-from pydbantic import Database
+from pydbantic import Database, DataBaseModel
 
+class Data(DataBaseModel):
+    a: int
+    b: float
+    c: str = 'test'
+    d: list = [1,2] # modified from tuple -> list
+    i: str
+
+@pytest.mark.order(2)
 @pytest.mark.asyncio
-async def test_model_migrations_2_new(new_model_1, db_url):
-    Data = new_model_1
+async def test_model_migrations_2_new(db_url):
     db = await Database.create(
         db_url,
         tables=[Data],
