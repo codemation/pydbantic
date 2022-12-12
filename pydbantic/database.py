@@ -5,12 +5,12 @@ import sqlalchemy
 
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-
+from sqlalchemy import create_engine
+from alembic import context
 import uuid
 from copy import deepcopy
 from pickle import dumps
 
-from pydantic import ValidationError
 from databases import Database as _Database
 from pydbantic.core import DataBaseModel, TableMeta, DatabaseInit
 from pydbantic.cache import Redis
@@ -205,6 +205,21 @@ class Database():
             
             migration_order.append(mig_details['table'])
         return migration_order
+    def alembic_migrate(self):
+        """
+        should be run from env.py with alembic
+        """
+        engine = create_engine(url=self.DB_URL)
+
+        with engine.connect() as con:
+            context.configure(
+                connection=con, 
+                target_metadata=self.metadata,
+                compare_type=True
+            )
+
+            with context.begin_transaction():
+                context.run_migrations()
 
     async def compare_tables_and_migrate(self) -> None:
         """
@@ -268,6 +283,10 @@ class Database():
 
             existing_model = meta_tables[table.__name__].model
             # check for new columns
+            aliases = {
+                column['new_name']:  column['old_name']
+                for column in table.__renamed__
+            } if hasattr(table, '__renamed__') else {}
             for field in table.__fields__:
                 if not field in existing_model:
                     if 'sqlite' in self.DB_URL:
@@ -279,8 +298,15 @@ class Database():
                     conn.dialect = self.engine.dialect
                     ctx = MigrationContext.configure(conn)
                     op = Operations(ctx)
-                    new_column = table.__metadata__.tables[table.__name__]['table'].columns[field]
-                    result = op.add_column(table.__name__, new_column)
+
+                    if not field in aliases:
+                        OP_str = 'New'
+                        if field in table.__metadata__.tables[table.__name__]['table'].columns:
+                            new_column = table.__metadata__.tables[table.__name__]['table'].columns[field]
+                            result = op.add_column(table.__name__, new_column)
+                    else:
+                        OP_str = 'Renamed'
+                        result = op.alter_column(table.__name__, aliases[field], nullable=False, new_column_name=field)
 
                     await self.update_table_meta(table, existing=True)
 
@@ -292,7 +318,7 @@ class Database():
                     )
                     table.__metadata__.tables[table.__name__]['table'] = new_table
 
-                    print(f"New Column: {field} in {table.__name__} {result}")
+                    self.log.info(f"{OP_str} Column: {field} in {table.__name__}")
                     continue
                 
                 try:
@@ -322,17 +348,16 @@ class Database():
                 existing_model['primary_key'] in table.__fields__
             ):
                 # Primary Key changed but previous key column still exists
-                migration_blame.append(
+                raise Exception(
                     f"Primary Key Changed from {existing_model['primary_key']} to {table_p_key}"
+                    f"Modifying a table primary key with pydbantic is not allowed!"
                 )
-                
-                is_migration_required = True
 
             # check for deleted columns
             for field in meta_tables[table.__name__].model:
                 if field == 'primary_key': 
                     continue
-                if not field in table.__fields__:
+                if not field in table.__fields__ and field not in aliases.values():
                     is_migration_required = True
                     migration_blame.append(f"Deleted Column: {field}")
             if is_migration_required:
@@ -355,10 +380,10 @@ class Database():
             # create old table , named with timestamp 
             self.metadata.remove(table.__metadata__.tables[table.__name__]['table'])
 
-            aliases = {
-                column['new_name']:  column['old_name']
-                for column in table.__renamed__
-            } if hasattr(table, '__renamed__') else {}
+            # aliases = {
+            #     column['new_name']:  column['old_name']
+            #     for column in table.__renamed__
+            # } if hasattr(table, '__renamed__') else {}
 
             old_table_columns = table.convert_fields_to_columns(include=to_select, alias=aliases)
 
@@ -368,7 +393,7 @@ class Database():
             ]
 
             old_table = None
-            if aliases:
+            if aliases and 'sqlite' in self.DB_URL:
                 self.metadata.remove(table.__metadata__.tables[table.__name__]['table'])
                 
                 old_table = sqlalchemy.Table(
@@ -545,7 +570,6 @@ class Database():
             await self.cache.invalidate(query.table.name)
         
         self.log.debug(f"database query: {query} - values {values}")
-        print(f"database query: {query} - values {values}")
 
         async with self as conn:
             return await conn.execute(query=query, values=values)
@@ -580,7 +604,7 @@ class Database():
         return row
 
     @classmethod
-    async def create(cls,
+    def create(cls,
         DB_URL: str,
         tables: list,
         cache_enabled: bool = False,
@@ -606,8 +630,11 @@ class Database():
         )
 
         if not use_alembic:
-            async with new_db:
-                await new_db.compare_tables_and_migrate()
+            async def migrate():
+                async with new_db:
+                    await new_db.compare_tables_and_migrate()
+                return new_db
+            return migrate()
         
         return new_db
 
