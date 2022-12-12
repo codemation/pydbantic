@@ -65,7 +65,7 @@ jobs:
             pytest tests/test_query_caching.py -s -x;
             pytest tests/test_querying.py -s -x;
             pytest tests/test_query_no_caching.py -s -x;
-            for mig_test in {0..9}; do 
+            for mig_test in {0..8}; do 
               pytest tests/migrations/test_model_migration_$mig_test.py;
             done
           done
@@ -123,7 +123,7 @@ jobs:
             pytest tests/test_query_caching.py -s -x;
             pytest tests/test_querying.py -s -x;
             pytest tests/test_query_no_caching.py -s -x;
-            for mig_test in {0..9}; do 
+            for mig_test in {0..8}; do 
               pytest tests/migrations/test_model_migration_$mig_test.py;
             done
           done
@@ -192,7 +192,7 @@ jobs:
             pytest tests/test_query_caching.py -s -x;
             pytest tests/test_querying.py -s -x;
             pytest tests/test_query_no_caching.py -s -x;
-            for mig_test in {0..9}; do 
+            for mig_test in {0..8}; do 
               pytest tests/migrations/test_model_migration_$mig_test.py;
             done
           done
