@@ -1,14 +1,24 @@
 import time
 import pytest
-from pydbantic import Database
+from pydbantic import Database, DataBaseModel
 
+class Data(DataBaseModel):
+    __renamed__ = [
+        {'old_name': 'b', 'new_name': 'b_new'}
+    ]
+    a: int
+    b_new: float # renamed
+    c: str = 'test'
+    d: list = [1,2]
+    i: str
+
+@pytest.mark.order(3)
 @pytest.mark.asyncio
-async def test_model_migrations_3_new(new_model_2, db_url):
+async def test_model_migrations_3_new(db_url):
     """
     test migration when a colunn is renamed
     b -> b_new
     """
-    Data = new_model_2
     db = await Database.create(
         db_url,
         tables=[Data],
