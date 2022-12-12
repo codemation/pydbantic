@@ -10,7 +10,7 @@ import sqlalchemy
 from sqlalchemy import select, func, or_, and_
 from sqlalchemy.orm import relationship, Session, Query
 from pickle import dumps, loads
-import imp
+import importlib
 import sys
 
 class _Generic(BaseModel):
@@ -254,7 +254,7 @@ class DataBaseModel(BaseModel):
     def resolve_missing_module(cls, missing_error):
         cls.__metadata__.database.log.warning(f"detected {missing_error} - attempting to self correct")
         missing_module = missing_error[38:-3]
-        module = imp.new_module(missing_module)
+        module = importlib.new_module(missing_module)
         sys.modules[missing_module] = module
 
     @classmethod 
@@ -792,7 +792,7 @@ class DataBaseModel(BaseModel):
     @classmethod
     def OR(
         cls, 
-        *conditions: List[DataBaseModelCondition], 
+        *conditions: List[Union[DataBaseModelCondition, List[DataBaseModelCondition]]],
         **filters: dict
     ) -> DataBaseModelCondition:
         """
@@ -810,14 +810,36 @@ class DataBaseModel(BaseModel):
                 raise Exception(f"{cond} is not a valid column in {table}")
 
             conditions.append(cond == value)
-        values = []
+        
+        parsed_conditions = []
         for cond in conditions:
+            if isinstance(cond, list):
+                cond_group_values = []
+                # condition group, join values & conditoins by AND
+                for c_item in cond:
+                    if not isinstance(c_item, DataBaseModelCondition):
+                        raise Exception(f"List items passed to OR must be List[DataBaseModelCondition]")
+
+                    cond_group_values.extend(c_item.values)
+                parsed_conditions.append(
+                    DataBaseModelCondition(
+                        " AND ".join([str(cnd) for cnd in cond]),
+                        and_(*[cnd.condition for cnd in cond]),
+                        values=tuple(cond_group_values)
+                    )
+                )
+                continue
+            else:
+                parsed_conditions.append(cond)
+        
+        values = []
+        for cond in parsed_conditions:
             if isinstance(cond.values, tuple):
                 values.extend(cond.values)
 
         return DataBaseModelCondition(
-            " OR ".join([str(cond) for cond in conditions]),
-            or_(*[cond.condition for cond in conditions]),
+            " OR ".join([str(cond) for cond in parsed_conditions]),
+            or_(*[cond.condition for cond in parsed_conditions]),
             values=tuple(values)
         )
         
@@ -844,7 +866,6 @@ class DataBaseModel(BaseModel):
             table.c[column] >= value,
             value
         )
-        
 
     @classmethod
     def lt(cls, column: str, value: Any) -> DataBaseModelCondition:
