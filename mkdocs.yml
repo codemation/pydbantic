@@ -12,4 +12,5 @@ nav:
   - Tutorials: tutorials.md
   - Model Usage: model-usage.md
   - Database Usage: database-usage.md
+  - Migrations with Alembic: alembic.md
   - Redis: redis-usage.md
