@@ -4,11 +4,7 @@ BASE_REQUIREMENTS = [
     'SQLAlchemy==1.4.28',
     'databases==0.5.3', 
     'aioredis==2.0.0', 
-<<<<<<< HEAD
     'pydantic==1.9.1',
-=======
-    'pydantic==1.8.2',
->>>>>>> 3c20c39725ff5f188fec0c800c0316b663cbd1df
     'alembic==1.8.1'
 ]
 MYSQL_REQUIREMENTS = [
