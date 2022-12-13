@@ -26,9 +26,9 @@ jobs:
         image: mysql
         # Provide the password for postgres
         env:
-          MYSQL_USER: mysqluser
-          MYSQL_PASSWORD: mysqlpw
-          MYSQL_ROOT_PASSWORD: mysqlpw
+          MYSQL_USER: mysqltestuser
+          MYSQL_PASSWORD: abcd1234
+          MYSQL_ROOT_PASSWORD: abcd1234
           MYSQL_DATABASE: database
         ports:
           - 3306:3306
