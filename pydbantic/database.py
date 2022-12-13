@@ -317,7 +317,6 @@ class Database():
                                 **existing_type_config['kwargs']
                             )
                         )
-                        breakpoint()
 
                     await self.update_table_meta(table, existing=True)
 
