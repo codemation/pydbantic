@@ -306,7 +306,18 @@ class Database():
                             result = op.add_column(table.__name__, new_column)
                     else:
                         OP_str = 'Renamed'
-                        result = op.alter_column(table.__name__, aliases[field], nullable=False, new_column_name=field)
+                        existing_type_config = table.__metadata__.tables[table.__name__]['column_map'][field][0]
+                        
+                        result = op.alter_column(
+                            table.__name__, aliases[field], 
+                            nullable=False, 
+                            new_column_name=field,
+                            type_=existing_type_config['column_type'](
+                                *existing_type_config['args'],
+                                **existing_type_config['kwargs']
+                            )
+                        )
+                        breakpoint()
 
                     await self.update_table_meta(table, existing=True)
 
