@@ -74,7 +74,7 @@ async def test_model_filtering_operators(loaded_database_and_model):
     assert len(mid_salary_employee) == 2
 
     mid_salary_employees = await Employees.filter(
-        Employees.salary.matches([30000, 40000])
+        Employees.salary.inside([30000, 40000])
     )
     
     assert len(mid_salary_employee) == 2
@@ -88,13 +88,13 @@ async def test_model_filtering_operators(loaded_database_and_model):
         Employees.salary >= 30000
     )
     second_employees = await Employees.filter(
-        Employees.salary.matches([20000, 40000])
+        Employees.salary.inside([20000, 40000])
     )
 
     mid_salary_employees = await Employees.filter(
         Employees.OR(
-            Employees.salary >= 30000,
-            Employees.salary.matches([20000, 40000])
+            [Employees.salary >= 30000],
+            [Employees.salary.inside([20000, 40000])]
         ),
         Employees.is_employed == True
     )

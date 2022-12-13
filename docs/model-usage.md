@@ -65,6 +65,20 @@ hr_department = Department(
 
 await hr_department.insert()
 ```
+#### Create Multiple Models 
+```python
+departments = [
+    Department(
+        id=f'{department}_1234',
+        name=f'{department}'
+        company='abc-company',
+        is_sensitive=True
+    ) for department in ['hr','sales', 'marketing']
+]
+
+await Department.insert_many(departments)
+```
+
 
 #### Create Model & Save / Update Later
 
@@ -234,7 +248,10 @@ for employee in all_employees:
     `.save()` can also be used, but first verified object existence before attempting save, while `.update()` does not verify before attempting to update. 
 
 ### Model Usage - Deleting
+
+#### Single 
 Much like updates, `DataBaseModel` objects can only be deleted by directly calling the `.delete()` method of an object instance. 
+
 
 ```python
 all_employees = await Employees.all()
@@ -243,8 +260,13 @@ all_employees = await Employees.all()
 await all_employees[-1].delete()
 ```
 
-!!! WARNING
-    Deleted objects which are depended on by other `DataBaseModel` are <u>NOT</u> deleted, as no strict table relationships exist between `DataBaseModel`. This may be changed later. 
+#### Multiple
+```python
+terminated_employees = await Employees.filter(
+    Employees.contains('name', 'terminated')
+)
+await Employees.delete_many(terminated_employees)
+```
 
 
 ### Models with arrays of Foreign Objects

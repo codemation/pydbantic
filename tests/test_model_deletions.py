@@ -35,9 +35,8 @@ async def test_model_deletions(loaded_database_and_model):
 
     assert len(result) == 201
 
-    for row in result:
-        await row.delete()
-    
+    await Employees.delete_many(result)
+
     result = await Employees.select('*')
 
     assert len(result) == 0
