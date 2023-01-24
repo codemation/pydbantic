@@ -61,17 +61,19 @@ class BaseMeta:
     }
     tables: dict = {}
 
-def PrimaryKey(default=..., sqlalchemy_type = None):
+def PrimaryKey(default=..., sqlalchemy_type = None, autoincrement: bool = None):
     return get_field_config(
         default=default,
         primary_key=True,
+        autoincrement=autoincrement,
         sqlalchemy_type=sqlalchemy_type
     )
 
-def Default(default=..., sqlalchemy_type = None):
+def Default(default=..., sqlalchemy_type = None, autoincrement: bool = None):
     return get_field_config(
         default=default,
-        sqlalchemy_type=sqlalchemy_type
+        autoincrement=autoincrement,
+        sqlalchemy_type=sqlalchemy_type,
     )
 
 def Unique(default=..., sqlalchemy_type = None):
@@ -85,12 +87,14 @@ def ModelField(
     default=...,
     primary_key: bool = None,
     unique: bool = None,
-    sqlalchemy_type = None
+    autoincrement: bool = None,
+    sqlalchemy_type = None,
 ):
     return get_field_config(
         default=default,
         primary_key=primary_key,
         unique=unique,
+        autoincrement=autoincrement,
         sqlalchemy_type=sqlalchemy_type
     )
 
@@ -98,7 +102,8 @@ def get_field_config(
     default=...,
     primary_key: bool = None,
     unique: bool = None,
-    sqlalchemy_type = None
+    sqlalchemy_type = None,
+    autoincrement: bool = None
 ):
     config = {}
     if isinstance(default, type(lambda x: x)):
@@ -109,6 +114,8 @@ def get_field_config(
         config['unique'] = unique
     if sqlalchemy_type is not None:
         config['sqlalchemy_type'] = sqlalchemy_type
+    if autoincrement is not None:
+        config['autoincrement'] = autoincrement
 
     return Field(**config)
 
@@ -484,6 +491,7 @@ class DataBaseModel(BaseModel):
         requried_fields = model_schema.get('required', [])
 
         default_fields = {}
+        autoincr_fields = {}
         sqlalchemy_type_config = {}
 
         for field_property, config in field_properties.items():
@@ -501,6 +509,9 @@ class DataBaseModel(BaseModel):
             
             if 'default' in config:
                 default_fields[field_property] = config['default']
+
+            if 'autoincrement' in config:
+                autoincr_fields[field_property] = config['autoincrement']
             
             if 'sqlalchemy_type' in config:
                 sqlalchemy_type_config[field_property] = config['sqlalchemy_type']
@@ -589,6 +600,9 @@ class DataBaseModel(BaseModel):
                 server_default['default'] = default_fields[field['name']]
                 if serialize:
                     server_default['default'] = dumps(server_default['default'])
+            
+            if field['name'] in autoincr_fields:
+                server_default['autoincrement'] = autoincr_fields[field['name']]
                     
             column_type_config = cls.__metadata__.tables[name]['column_map'][field['name']][0]
             columns.append(
