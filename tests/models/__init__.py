@@ -36,7 +36,7 @@ class EmployeeInfo(DataBaseModel):
 class Employee(DataBaseModel):
     employee_id: str = PrimaryKey()
     emp_ssn: Optional[int] = ForeignKey(EmployeeInfo, 'ssn')
-    employee_info: EmployeeInfo = Relationship("EmployeeInfo", 'employee_id', 'bio_id')
+    employee_info: Optional[EmployeeInfo] = Relationship("EmployeeInfo", 'employee_id', 'bio_id')
     position: List[Optional[Positions]] = []
     salary: float
     is_employed: bool
