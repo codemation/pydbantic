@@ -2,12 +2,11 @@ import pytest
 from tests.models import EmployeeInfo, Employee
 
 @pytest.mark.asyncio
-async def test_model_filtering_operators(loaded_database_and_model):
+async def test_model_1_to_1(loaded_database_and_model):
     db = loaded_database_and_model
 
     all_employees = await Employee.all()
     employee = all_employees[0]
-
     employee_info = await EmployeeInfo.get(
         EmployeeInfo.ssn == employee.employee_info.ssn
     )
