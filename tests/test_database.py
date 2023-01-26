@@ -7,20 +7,20 @@ from tests.models import Employee, EmployeeInfo, Positions, Department
 async def test_database(db_url):
     db = await Database.create(
         db_url,
-        tables=[Employee, Positions, Department],
+        tables=[EmployeeInfo, Employee, Positions, Department],
         cache_enabled=False,
         testing=True,
         use_alembic=False
     )
-    sel = await db.TableMeta.select('*')
+    sel = await db.TableMeta.all()
 
-    result = await Employee.select('*')
+    result = await Employee.all()
 
     new_employee = {
         'employee_id': 'abcd1632173531.8840718', 
         'employee_info': {
-            'ssn': '1234', 
-            'first_name': 'new name - updated', 
+            'first_name': 'new name - updated',
+            'ssn': 0,
             'last_name': 'last', 
             'address': '123 lane', 
             'address2': None, 'city': None, 'zip': None
@@ -40,33 +40,43 @@ async def test_database(db_url):
     }
     
     employee = Employee(**new_employee)
+   
     await employee.insert()
     emp_info = await EmployeeInfo.filter(bio_id=employee.employee_info.bio_id)
+    employee.emp_ssn = emp_info[0].ssn
+    await employee.save()
 
-    result = await Employee.select('*', where={'employee_id': employee.employee_id})
+    result = await Employee.filter(employee_id=employee.employee_id)
 
-    result = await Employee.select('*')
+    result = await Employee.all()
 
     await employee.delete()
 
-    result = await Employee.select('*', where={'employee_id': employee.employee_id})
-
-    result = await Employee.select('*', where={'employee_id': employee.employee_id})
-
-    result = await Employee.select('*', where={'employee_id': employee.employee_id})
+    result = await Employee.filter(employee_id=employee.employee_id)
 
     for i in range(21, 40):
         i = int(time.time()) + i
         position = new_employee['position'][0]
         position['employee_id'] = f'p{i}'
+        e_info = employee.employee_info.dict()
+        e_info.pop('ssn')
+        e_info.pop('bio_id')
+
+        e_info = await EmployeeInfo.create(**e_info)
+
+        e_info = await EmployeeInfo.filter(bio_id=e_info.bio_id)
+
         emp = Employee(
             employee_id=f'a{i}',
+            emp_ssn=e_info[0].ssn,
             position=[position],
             is_employed=True, 
             salary=new_employee['salary'], 
-            employee_info=new_employee['employee_info'],
+            employee_info=e_info[0],
         )
+
         await emp.insert()
+
         emp = await Employee.get(employee_id=f'a{i}')
         emp_info: EmployeeInfo = await EmployeeInfo.filter(bio_id=emp.employee_info.bio_id)
         assert len(emp_info) == 1
@@ -91,3 +101,6 @@ async def test_database(db_url):
 
     filtered_employee = await Employee.filter(is_employed=False)
     assert len(filtered_employee) == 1
+
+    all_emps = await Employee.all()
+    assert len(all_emps) == 20
