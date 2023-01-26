@@ -17,7 +17,6 @@ async def test_models(database_with_cache):
     new_employee = {
         'employee_id': 'abcd1632173531.8840718', 
         'employee_info': {
-            'ssn': '1234', 
             'first_name': 'new name - updated', 
             'last_name': 'last', 
             'address': '123 lane', 
@@ -48,7 +47,6 @@ async def test_models(database_with_cache):
 
     # verify data in result matches original example
     assert result[0].employee_id == employee.employee_id
-    assert result[0].employee_info.ssn == employee.employee_info.ssn
     assert result[0].position[0].position_id == employee.position[0].position_id
     assert result[0].position[0].name == employee.position[0].name
     assert result[0].salary == employee.salary
