@@ -1,11 +1,10 @@
-from builtins import breakpoint
 import pytest
 
 @pytest.mark.asyncio
 async def test_model_updates(loaded_database_and_model):
     db, Employees = loaded_database_and_model
 
-    all_employees = await Employees.select('*')
+    all_employees = await Employees.all()
     employee = all_employees[0]
 
     # trigger update of sub-model
