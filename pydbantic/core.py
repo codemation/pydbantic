@@ -61,7 +61,20 @@ class BaseMeta:
     }
     tables: dict = {}
 
-def PrimaryKey(default=..., sqlalchemy_type = None, autoincrement: bool = None):
+def Relationship(
+    relationship_model: Any,
+    relationship_local_column: str,
+    relationship_model_column: str,
+    default=...
+):
+    return get_field_config(
+        relationship_model=relationship_model,
+        relationship_local_column=relationship_local_column,
+        relationship_model_column=relationship_model_column,
+        default=default
+    )
+
+def PrimaryKey(sqlalchemy_type = None, default=..., autoincrement: bool = None):
     return get_field_config(
         default=default,
         primary_key=True,
@@ -69,26 +82,36 @@ def PrimaryKey(default=..., sqlalchemy_type = None, autoincrement: bool = None):
         sqlalchemy_type=sqlalchemy_type
     )
 
-def Default(default=..., sqlalchemy_type = None, autoincrement: bool = None):
+def ForeignKey(
+    foreign_model: Union["DataBaseModel", str], 
+    foreign_model_key: str
+):
+    return get_field_config(
+        foreign_model=foreign_model,
+        foreign_model_key=foreign_model_key
+    )
+
+def Default(sqlalchemy_type = None, default=..., autoincrement: bool = None):
     return get_field_config(
         default=default,
         autoincrement=autoincrement,
         sqlalchemy_type=sqlalchemy_type,
     )
 
-def Unique(default=..., sqlalchemy_type = None):
+def Unique(sqlalchemy_type = None, default=...,  autoincrement: bool = None):
     return get_field_config(
         default=default,
         unique=True,
-        sqlalchemy_type=sqlalchemy_type
+        sqlalchemy_type=sqlalchemy_type,
+        autoincrement=autoincrement
     )
 
 def ModelField(
+    sqlalchemy_type = None,
     default=...,
     primary_key: bool = None,
     unique: bool = None,
-    autoincrement: bool = None,
-    sqlalchemy_type = None,
+    autoincrement: bool = None
 ):
     return get_field_config(
         default=default,
@@ -103,7 +126,12 @@ def get_field_config(
     primary_key: bool = None,
     unique: bool = None,
     sqlalchemy_type = None,
-    autoincrement: bool = None
+    autoincrement: bool = None,
+    foreign_model: Any = None,
+    foreign_model_key: str = None,
+    relationship_model: Any = None,
+    relationship_local_column: str = None,
+    relationship_model_column: str = None,
 ):
     config = {}
     if isinstance(default, type(lambda x: x)):
@@ -116,9 +144,66 @@ def get_field_config(
         config['sqlalchemy_type'] = sqlalchemy_type
     if autoincrement is not None:
         config['autoincrement'] = autoincrement
+    if foreign_model is not None:
+        config['foreign_model'] = foreign_model
+        config['foreign_model_key'] = foreign_model_key
+    if relationship_model is not None:
+        config['relationship_model'] = relationship_model
+        config['relationship_local_column'] = relationship_local_column
+        config['relationship_model_column'] = relationship_model_column
 
     return Field(**config)
 
+class LinkTable:
+    def __init__(
+        self,
+        link_table: sqlalchemy.Table,
+        related_model,
+        related_key,
+        local_model,
+        local_key,
+    ):
+        self.c = link_table.c
+        self.link_table = link_table
+        self.related_model = related_model
+        self.related_key = related_key
+        self.local_model = local_model
+        self.local_key = local_key
+
+    def setup_relationships(self, field_ref: str, related_model_ref: str):
+        local_table = self.local_model.get_table()
+        setattr(
+            local_table,
+            field_ref,
+            relationship(
+                self.related_model.__name__,
+                secondary=self.link_table,
+                backref=related_model_ref
+            )
+        )
+
+    def outer_join(self, session_query):
+        local_table = self.local_model.get_table()
+        related_table = self.related_model.get_table()
+
+        session_query = session_query.outerjoin(
+            self.link_table, 
+            getattr(
+                local_table.c, self.local_key
+            ) == getattr(
+                self.link_table.c, f"{self.local_model.__name__}_{self.local_key}"
+            )
+        ).outerjoin(
+            related_table,
+            getattr(
+                self.link_table.c, 
+                f"{self.related_model.__name__}_{self.related_key}"
+            ) == getattr(
+                related_table.c, 
+                self.related_key
+            )
+        )
+        return session_query
 
 class DataBaseModelCondition:
     def __init__(
@@ -350,25 +435,13 @@ class DataBaseModel(BaseModel):
         columns, link_tables = cls.convert_fields_to_columns()
 
         cls.__metadata__.tables[name]['table'] = sqlalchemy.Table(
-            name,
+            name if not hasattr(cls, '__tablename__') else cls.__tablename__,
             cls.__metadata__.metadata,
             *columns
         )
 
         for data_base_model, field_name in link_tables:
             cls.generate_relationship_table(data_base_model, field_name)
-        
-
-        for rel, table in cls.__metadata__.tables[cls.__name__]['relationships'].items():
-            setattr(
-                cls.__metadata__.tables[name]['table'],
-                table[1],
-                relationship(
-                    rel,
-                    secondary=table[0],
-                    backref=table[2]
-                )
-            )
 
     @classmethod
     def generate_relationship_table(cls, related_model: DataBaseModel, field_ref: str) -> NoneType:
@@ -377,39 +450,65 @@ class DataBaseModel(BaseModel):
         cls primary_key & related_model primary key 
         """
         
-        if related_model.__name__ in cls.__metadata__.tables[cls.__name__]['relationships']:
-            return
+
+        
+        name = cls.__name__
         
         related_model_ref = None
+        relationship_definitions = None
         for f_name, field in related_model.__fields__.items():
             data_base_model = related_model.check_if_subtype({'name': f_name, 'type': field.type_})
             if data_base_model is cls:
                 related_model_ref = f_name
+                relationship_definitions = cls.__metadata__.tables[name]['relationship_definitions'].get(related_model.__name__)
+        
+        if related_model.__name__ in cls.__metadata__.tables[cls.__name__]['relationships']:
+            # link table already exists, initialize relationship on local table
+            cls.__metadata__.tables[cls.__name__]['relationships'][related_model.__name__].setup_relationships(
+                field_ref, related_model_ref
+            )
+            return
 
-
+        local_column = cls.__metadata__.tables[cls.__name__]['primary_key']
+        related_column =  cls.__metadata__.tables[related_model.__name__]['primary_key']
+        
+        if relationship_definitions:
+            local_column = relationship_definitions['local_column']
+            related_column = relationship_definitions['related_column']
+        
         relationship_table = sqlalchemy.Table(
             f"{cls.__name__}_to_{related_model.__name__}",
             cls.__metadata__.metadata,
             sqlalchemy.Column(
-                f"{cls.__name__}_{cls.__metadata__.tables[cls.__name__]['primary_key']}",
+                f"{cls.__name__}_{local_column}",
                 sqlalchemy.ForeignKey(
-                    f"{cls.__name__}.{cls.__metadata__.tables[cls.__name__]['primary_key']}",
+                    f"{cls.__name__}.{local_column}",
                     ondelete="CASCADE"
                 ),
                 primary_key=True
             ),
             sqlalchemy.Column(
-                f"{related_model.__name__}_{cls.__metadata__.tables[related_model.__name__]['primary_key']}",
+                f"{related_model.__name__}_{related_column}",
                 sqlalchemy.ForeignKey(
-                    f"{related_model.__name__}.{cls.__metadata__.tables[related_model.__name__]['primary_key']}",
+                    f"{related_model.__name__}.{related_column}",
                     ondelete="CASCADE"
                 ),
                 primary_key=True
             )
         )
-        
-        cls.__metadata__.tables[cls.__name__]['relationships'][related_model.__name__] = relationship_table, field_ref, related_model_ref
-        cls.__metadata__.tables[related_model.__name__]['relationships'][cls.__name__] = relationship_table, related_model_ref, field_ref
+
+        cls.__metadata__.tables[cls.__name__]['relationships'][related_model.__name__] = (
+            LinkTable(relationship_table, related_model, related_column, cls, local_column)
+        )
+        # initalize relationship on local table
+        cls.__metadata__.tables[cls.__name__]['relationships'][related_model.__name__].setup_relationships(
+            field_ref, related_model_ref
+        )
+
+        cls.__metadata__.tables[related_model.__name__]['relationships'][cls.__name__] = (
+            LinkTable(relationship_table, cls, local_column, related_model, related_column)
+        )
+
 
     @classmethod 
     def generate_model_attributes(cls) -> NoneType:
@@ -468,6 +567,7 @@ class DataBaseModel(BaseModel):
         if not include:
             include = [f for f in cls.__fields__]
 
+        name = cls.__name__
         primary_key = None
         unique_keys = set()
         array_fields = set()
@@ -493,9 +593,11 @@ class DataBaseModel(BaseModel):
         default_fields = {}
         autoincr_fields = {}
         sqlalchemy_type_config = {}
+        field_constraints = {}
+        relationship_definitions = {}
 
         for field_property, config in field_properties.items():
-            
+            field_constraints[field_property] = []
             if 'primary_key' in config:
                 if primary_key:
                     raise Exception(f"Duplicate Primary Key Specified for {cls.__name__}")
@@ -515,6 +617,25 @@ class DataBaseModel(BaseModel):
             
             if 'sqlalchemy_type' in config:
                 sqlalchemy_type_config[field_property] = config['sqlalchemy_type']
+
+            if 'foreign_model' in config:
+                foreign_model_name = config['foreign_model'].__name__
+                foreign_model_key = (
+                    cls.__metadata__.tables[foreign_model_name]['primary_key']
+                    if 'foreign_model_key' not in config
+                    else config['foreign_model_key']
+                )
+
+                #foreign_model_sqlalchemy_type = cls.__metadata__.tables[foreign_model_name]['column_map'][foreign_model_key][0]
+                #sqlalchemy_type_config[field_property] = foreign_model_sqlalchemy_type
+                field_constraints[field_property].append(
+                    sqlalchemy.ForeignKey(f'{foreign_model_name}.{foreign_model_key}')
+                )
+            if 'relationship_model' in config:
+                relationship_definitions[config['relationship_model']] = {
+                    'local_column': config['relationship_local_column'],
+                    'related_column': config['relationship_model_column']
+                }
             
             if not field_property in requried_fields:
                 nullable_feilds.add(field_property)
@@ -539,7 +660,8 @@ class DataBaseModel(BaseModel):
                 'primary_key': primary_key,
                 'column_map': {},
                 'foreign_keys': {},
-                'relationships': {} if name not in cls.__metadata__.tables else cls.__metadata__.tables[name]['relationships']
+                'relationships': {} if name not in cls.__metadata__.tables else cls.__metadata__.tables[name]['relationships'],
+                'relationship_definitions': relationship_definitions
             }
 
         columns = []
@@ -568,7 +690,8 @@ class DataBaseModel(BaseModel):
                     cls.__metadata__.database.get_translated_column_type(foreign_key_type if not serialize else list)[0],
                     data_base_model,
                     serialize,
-                    field['name'] in array_fields
+                    field['name'] in array_fields,
+                    False
                 )
 
                 # store field name in map to quickly determine attribute is tied to 
@@ -593,6 +716,7 @@ class DataBaseModel(BaseModel):
                 field['type'],
                 serialize,
                 False, #field['name'] in array_fields
+                field['name'] in autoincr_fields
             )
             cls.__metadata__.tables[name]['model'] = cls
             server_default = {}
@@ -612,6 +736,7 @@ class DataBaseModel(BaseModel):
                         *column_type_config['args'], 
                         **column_type_config['kwargs']
                     ) if field['name'] not in sqlalchemy_type_config else sqlalchemy_model,
+                    *field_constraints.get(field['name'], []),
                     primary_key = field['name'] == primary_key,
                     unique = field['name'] in unique_keys,
                     nullable = field['name'] in nullable_feilds and field['name'] != primary_key,
@@ -645,6 +770,12 @@ class DataBaseModel(BaseModel):
         for k, v in data.items():
             
             serialize = self.__metadata__.tables[name]['column_map'][k][2]
+
+            autoincrement = self.__metadata__.tables[name]['column_map'][k][4]
+            if autoincrement:
+                del values[k]
+                continue
+
             skip = False
             if k in self.__metadata__.tables[name]['foreign_keys']:
 
@@ -653,7 +784,13 @@ class DataBaseModel(BaseModel):
                 foreign_name = foreign_type.__name__
                 foreign_primary_key = foreign_type.__metadata__.tables[foreign_name]['primary_key']
 
-                link_table = self.__metadata__.tables[name]['relationships'][foreign_name][0]
+                Link: LinkTable= self.__metadata__.tables[name]['relationships'][foreign_name]
+                link_table = Link.link_table
+
+                if foreign_primary_key != Link.related_key:
+                    foreign_primary_key = Link.related_key
+                if primary_key != Link.local_key:
+                    primary_key = Link.local_key
                 
                 foreign_values = [v] if not isinstance(v, list) else v
                 fk_values = []
@@ -740,8 +877,8 @@ class DataBaseModel(BaseModel):
 
             if serialize:
                 values[k] = dumps(getattr(self, k))
-
                 continue
+
             values[k] = v
 
         return values, link_chain
@@ -972,8 +1109,9 @@ class DataBaseModel(BaseModel):
         .join() clauses to active session_query, and append foreign tables
         to list
         """
-        if cls.__name__ in models_selected:
-            return session_query, tables_to_select
+
+        # if cls.__name__ in models_selected:
+        #     return session_query, tables_to_select
 
         foreign_models = []
         for column_name in cls.__metadata__.tables[cls.__name__]['column_map']:
@@ -991,21 +1129,11 @@ class DataBaseModel(BaseModel):
         table = cls.get_table()
         primary_key = cls.__metadata__.tables[cls.__name__]['primary_key']
         
-        link_table = cls.__metadata__.tables[model_ref.__name__]['relationships'][cls.__name__][0]
+        _link_table = cls.__metadata__.tables[model_ref.__name__]['relationships'][cls.__name__]
+        link_table = _link_table.link_table
         
-        session_query = session_query.outerjoin(
-            link_table, 
-            getattr(ref_table.c, model_ref_primary_key) == getattr(link_table.c, f"{model_ref.__name__}_{model_ref_primary_key}")
-        ).outerjoin(
-            table,
-            getattr(
-                link_table.c, 
-                f"{cls.__name__}_{primary_key}"
-            ) == getattr(
-                table.c, 
-                primary_key
-            )
-        )
+        session_query = _link_table.outer_join(session_query)
+
         if not cls is root_model:
             session_query = session_query.add_columns(*[c for c in table.c])
             tables_to_select.append((table, cls, column_ref, model_ref))
@@ -1019,7 +1147,6 @@ class DataBaseModel(BaseModel):
                 cls, primary_key, column_ref,
                 session_query, tables_to_select, models_selected
             )
-        
         return session_query, tables_to_select
 
     @classmethod
@@ -1061,7 +1188,8 @@ class DataBaseModel(BaseModel):
                     sel, tables_to_select, models_selected,
                     root_model = cls
                 )
-
+                if not foreign_model.__name__ in models_selected:
+                    models_selected.add(foreign_model.__name__)
                 continue
 
             if column_name not in table.c:
@@ -1075,7 +1203,6 @@ class DataBaseModel(BaseModel):
             sel = sel.order_by(order_by)
 
         sel, values = cls.check_limit_offset(sel, values, limit, offset)
-
         results = await database.fetch(sel.statement, models_selected, values)
         
         # build results_map
@@ -1309,6 +1436,8 @@ class DataBaseModel(BaseModel):
                     cls, primary_key, column_name,
                     sel, tables_to_select, models_selected
                 )
+                if not foreign_model.__name__ in models_selected:
+                    models_selected.add(foreign_model.__name__)
                 continue
 
         sel, values = cls.where(sel, column_filters, *conditions)
@@ -1602,7 +1731,8 @@ class DataBaseModel(BaseModel):
         database = self.__metadata__.database
 
         values, links = await self.serialize(self.dict(), insert=True)
-        query = table.insert()
+
+        query = table.insert(values)
         try:
             await self.__metadata__.database.execute(
                 query, values
