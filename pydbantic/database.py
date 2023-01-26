@@ -44,7 +44,7 @@ class Database():
         self.engine = sqlalchemy.create_engine(
             self.DB_URL,
             connect_args={'check_same_thread': False}
-            if 'sqlite' in str(self.DB_URL) else {},
+            if 'sqlite' in str(self.DB_URL) else {}
         )
         
         self.DEFAULT_TRANSLATIONS = DEFAULT_TRANSLATIONS
@@ -153,37 +153,8 @@ class Database():
 
     def testing_setup(self):
         if self.testing:
-            if self.TableMeta:
-                try:
-                    TableMeta.__metadata__.tables[TableMeta.__name__]['table'].drop()
-                except Exception:
-                    pass
-                self.metadata.remove(TableMeta.__metadata__.tables[TableMeta.__name__]['table'])
-                TableMeta.__metadata__.tables[TableMeta.__name__]['table'].create(self.engine)
-
-            dropped = set()
-            for table in self.tables:
-                for _, link_table in table.__metadata__.tables[table.__name__]['relationships'].items():
-                    if not link_table[0].name in dropped:
-                        dropped.add(link_table[0].name)
-                        try:
-                            link_table[0].metadata.tables[link_table[0].name].drop()
-                        except Exception:
-                            pass
-                try:
-                    table.__metadata__.tables[table.__name__]['table'].drop()
-                except Exception:
-                    pass
-                self.metadata.remove(table.__metadata__.tables[table.__name__]['table'])
-
-                table.__metadata__.tables[table.__name__]['table'].create(self.engine)
-
-            created = set()
-            for table in self.tables:
-                for _, link_table in table.__metadata__.tables[table.__name__]['relationships'].items():
-                    if not link_table[0].name in dropped:
-                        created.add(link_table[0].name)
-                        link_table[0].create(self.engine)
+            self.metadata.drop_all()
+            self.metadata.create_all()
 
     @staticmethod
     def determine_migration_order(migrations_required: dict):
@@ -390,11 +361,6 @@ class Database():
             # create old table , named with timestamp 
             self.metadata.remove(table.__metadata__.tables[table.__name__]['table'])
 
-            # aliases = {
-            #     column['new_name']:  column['old_name']
-            #     for column in table.__renamed__
-            # } if hasattr(table, '__renamed__') else {}
-
             old_table_columns = table.convert_fields_to_columns(include=to_select, alias=aliases)
 
             to_select = [
@@ -427,10 +393,10 @@ class Database():
             )
 
             # if table linked with relationship, drop link table
-            for rel, rel_table in table.__metadata__.tables[table.__name__]['relationships'].items():
-                self.log.warning(f"dropping related link-table {rel_table[0].name}")
-                rel_table[0].drop(self.engine)
-                self.metadata.remove(rel_table[0])
+            for rel, link_table in table.__metadata__.tables[table.__name__]['relationships'].items():
+                self.log.warning(f"dropping related link-table {link_table.link_table.name}")
+                link_table.link_table.drop(self.engine)
+                self.metadata.remove(link_table.link_table)
                 
             if old_table is None:
                 old_table = sqlalchemy.Table(
@@ -501,8 +467,8 @@ class Database():
             table.__metadata__.tables[table.__name__]['table'] = new_table
 
             for relationship, link_table in table.__metadata__.tables[table.__name__]['relationships'].items():
-                self.log.warning(f"re-creating related link-table {link_table[0].name}")
-                link_table[0].create()
+                self.log.warning(f"re-creating related link-table {link_table.link_table.name}")
+                link_table.link_table.create()
 
             try:
                 for row in migration_rows:
