@@ -1,7 +1,8 @@
 from uuid import uuid4
 from datetime import datetime
 from typing import List, Optional, Union
-from pydbantic import DataBaseModel, PrimaryKey, Unique
+import sqlalchemy
+from pydbantic import DataBaseModel, PrimaryKey, Unique, Relationship, ForeignKey
 
 def uuid_str():
     return str(uuid4())
@@ -21,7 +22,7 @@ class Positions(DataBaseModel):
 
 class EmployeeInfo(DataBaseModel):
     #__renamed__= [{'old_name': 'first_name', 'new_name': 'first_names'}]
-    ssn: str = PrimaryKey()
+    ssn: Optional[int] = PrimaryKey(sqlalchemy_type=sqlalchemy.Integer, autoincrement=True)
     bio_id: str = Unique(default=uuid_str)
     first_name: str
     last_name: str
@@ -30,11 +31,12 @@ class EmployeeInfo(DataBaseModel):
     city: Optional[str]
     zip: Optional[int]
     new: Optional[str]
-    employee: Optional[Union['Employee', dict]] = None
+    employee: Optional[Union['Employee', dict]] = Relationship("Employee", 'bio_id', 'employee_id')
 
 class Employee(DataBaseModel):
     employee_id: str = PrimaryKey()
-    employee_info: Optional[EmployeeInfo] = None
+    emp_ssn: Optional[int] = ForeignKey(EmployeeInfo, 'ssn')
+    employee_info: EmployeeInfo = Relationship("EmployeeInfo", 'employee_id', 'bio_id')
     position: List[Optional[Positions]] = []
     salary: float
     is_employed: bool
