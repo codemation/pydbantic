@@ -1,5 +1,5 @@
 import pytest
-from tests.models import EmployeeInfo, Employee
+from tests.models import EmployeeInfo, Employee, Department
 
 @pytest.mark.asyncio
 async def test_model_1_to_1(loaded_database_and_model):
@@ -16,3 +16,5 @@ async def test_model_1_to_1(loaded_database_and_model):
     assert employee_info.employee.salary == employee.salary
     assert employee_info.employee.date_employed == employee.date_employed
 
+    positoin_in_department = await employee_info.employee.position[0].department.positions[0]()
+    assert positoin_in_department.department.department_id == employee_info.employee.position[0].department.department_id
