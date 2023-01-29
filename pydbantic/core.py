@@ -191,13 +191,13 @@ class LinkTable:
             getattr(
                 local_table.c, self.local_key
             ) == getattr(
-                self.link_table.c, f"{self.local_model.__name__}_{self.local_key}"
+                self.link_table.c, f"{self.local_model.__tablename__}_{self.local_key}"
             )
         ).outerjoin(
             related_table,
             getattr(
                 self.link_table.c, 
-                f"{self.related_model.__name__}_{self.related_key}"
+                f"{self.related_model.__tablename__}_{self.related_key}"
             ) == getattr(
                 related_table.c, 
                 self.related_key
@@ -404,6 +404,7 @@ class DataBaseModel(BaseModel):
 
     @classmethod
     def setup(cls, database):
+        cls.__tablename__ = getattr(cls, '__tablename__', cls.__name__)
         cls.update_backward_refs()
         
         if not hasattr(cls.__metadata__, 'metadata'):
@@ -477,20 +478,20 @@ class DataBaseModel(BaseModel):
             related_column = relationship_definitions['related_column']
         
         relationship_table = sqlalchemy.Table(
-            f"{cls.__name__}_to_{related_model.__name__}",
+            f"{cls.__tablename__}_to_{related_model.__tablename__}",
             cls.__metadata__.metadata,
             sqlalchemy.Column(
-                f"{cls.__name__}_{local_column}",
+                f"{cls.__tablename__}_{local_column}",
                 sqlalchemy.ForeignKey(
-                    f"{cls.__name__}.{local_column}",
+                    f"{cls.__tablename__}.{local_column}",
                     ondelete="CASCADE"
                 ),
                 primary_key=True
             ),
             sqlalchemy.Column(
-                f"{related_model.__name__}_{related_column}",
+                f"{related_model.__tablename__}_{related_column}",
                 sqlalchemy.ForeignKey(
-                    f"{related_model.__name__}.{related_column}",
+                    f"{related_model.__tablename__}.{related_column}",
                     ondelete="CASCADE"
                 ),
                 primary_key=True
@@ -620,6 +621,7 @@ class DataBaseModel(BaseModel):
 
             if 'foreign_model' in config:
                 foreign_model_name = config['foreign_model'].__name__
+                foreign_table_name = config['foreign_model'].__tablename__
                 foreign_model_key = (
                     cls.__metadata__.tables[foreign_model_name]['primary_key']
                     if 'foreign_model_key' not in config
@@ -628,8 +630,9 @@ class DataBaseModel(BaseModel):
 
                 #foreign_model_sqlalchemy_type = cls.__metadata__.tables[foreign_model_name]['column_map'][foreign_model_key][0]
                 #sqlalchemy_type_config[field_property] = foreign_model_sqlalchemy_type
+                
                 field_constraints[field_property].append(
-                    sqlalchemy.ForeignKey(f'{foreign_model_name}.{foreign_model_key}')
+                    sqlalchemy.ForeignKey(f'{foreign_table_name}.{foreign_model_key}')
                 )
             if 'relationship_model' in config:
                 relationship_definitions[config['relationship_model']] = {
@@ -759,6 +762,7 @@ class DataBaseModel(BaseModel):
         """
         database = self.__metadata__.database
         name = self.__class__.__name__
+        table_name = self.__class__.__tablename__
         if not alias:
             alias = {}
 
@@ -782,6 +786,7 @@ class DataBaseModel(BaseModel):
                 # use the foreign DataBaseModel's primary key / value 
                 foreign_type = self.__metadata__.tables[name]['column_map'][k][1]
                 foreign_name = foreign_type.__name__
+                foreign_table_name = foreign_type.__tablename__
                 foreign_primary_key = foreign_type.__metadata__.tables[foreign_name]['primary_key']
 
                 Link: LinkTable= self.__metadata__.tables[name]['relationships'][foreign_name]
@@ -830,8 +835,8 @@ class DataBaseModel(BaseModel):
                         foreign_primary_key_value = dumps(foreign_primary_key_value)
 
                     link_values = {
-                        f'{name}_{primary_key}': local_value, 
-                        f'{foreign_name}_{foreign_primary_key}': foreign_primary_key_value
+                        f'{table_name}_{primary_key}': local_value, 
+                        f'{foreign_table_name}_{foreign_primary_key}': foreign_primary_key_value
                     }
                     link_insert = database.execute(link_table.insert(), link_values)
                     link_chain.append(link_insert)
@@ -856,8 +861,8 @@ class DataBaseModel(BaseModel):
                 if update and fk_values:
                     remove_deleted = delete(link_table).where(
                         and_(
-                            link_table.c[f'{name}_{primary_key}']==local_value,
-                            link_table.c[f'{foreign_type.__name__}_{foreign_primary_key}'].not_in(fk_values)
+                            link_table.c[f'{table_name}_{primary_key}']==local_value,
+                            link_table.c[f'{foreign_table_name}_{foreign_primary_key}'].not_in(fk_values)
                         )
                     )
                     result = await database.execute(remove_deleted)
@@ -867,7 +872,7 @@ class DataBaseModel(BaseModel):
                     link_chain.append(
                         database.execute(
                             delete(link_table).where(
-                                link_table.c[f'{name}_{primary_key}']==local_value
+                                link_table.c[f'{table_name}_{primary_key}']==local_value
                             )
                         )
                     )
@@ -1089,7 +1094,7 @@ class DataBaseModel(BaseModel):
 
         database = cls.__metadata__.database
 
-        results = await database.fetch(sel, {cls.__name__}, values)
+        results = await database.fetch(sel, {cls.__tablename__}, values)
 
         return bool(results)
 
@@ -1110,16 +1115,13 @@ class DataBaseModel(BaseModel):
         to list
         """
 
-        # if cls.__name__ in models_selected:
-        #     return session_query, tables_to_select
-
         foreign_models = []
         for column_name in cls.__metadata__.tables[cls.__name__]['column_map']:
             if column_name in cls.__metadata__.tables[cls.__name__]['foreign_keys']:
             
                 # foreign model
                 foreign_model = cls.__metadata__.tables[cls.__name__]['column_map'][column_name][1]
-                if foreign_model.__name__ in models_selected:
+                if foreign_model.__tablename__ in models_selected:
                     # skipping model, as is already selected in current query
                     continue
                 foreign_models.append((foreign_model, column_name))
@@ -1137,12 +1139,10 @@ class DataBaseModel(BaseModel):
         if not cls is root_model:
             session_query = session_query.add_columns(*[c for c in table.c])
             tables_to_select.append((table, cls, column_ref, model_ref))
-        models_selected.add(cls.__name__)
+        models_selected.add(cls.__tablename__)
         models_selected.add(link_table.name)
 
         for foreign_model, column_ref in foreign_models:
-            if foreign_model.__name__ in models_selected:
-                continue
             session_query, tables_to_select = foreign_model.deep_join(
                 cls, primary_key, column_ref,
                 session_query, tables_to_select, models_selected
@@ -1172,7 +1172,7 @@ class DataBaseModel(BaseModel):
             selection = [k for k in cls.__metadata__.tables[cls.__name__]['column_map']]
 
         tables_to_select = []
-        models_selected = set((cls.__name__,))
+        models_selected = set((cls.__tablename__,))
 
         primary_key = cls.__metadata__.tables[cls.__name__]['primary_key'] if not primary_key else primary_key
         
@@ -1188,8 +1188,8 @@ class DataBaseModel(BaseModel):
                     sel, tables_to_select, models_selected,
                     root_model = cls
                 )
-                if not foreign_model.__name__ in models_selected:
-                    models_selected.add(foreign_model.__name__)
+                if not foreign_model.__tablename__ in models_selected:
+                    models_selected.add(foreign_model.__tablename__)
                 continue
 
             if column_name not in table.c:
@@ -1393,7 +1393,7 @@ class DataBaseModel(BaseModel):
         database = cls.__metadata__.database
         session = Session(database.engine)
         sel = session.query(func.count()).select_from(table)
-        results = await database.fetch(sel.statement, {cls.__name__})
+        results = await database.fetch(sel.statement, {cls.__tablename__})
         return results[0][0] if results else 0
 
     @classmethod
@@ -1420,7 +1420,7 @@ class DataBaseModel(BaseModel):
         selection = [k for k in cls.__metadata__.tables[cls.__name__]['column_map']]
         
         tables_to_select = []
-        models_selected = set((cls.__name__,))
+        models_selected = set((cls.__tablename__,))
 
         primary_key = cls.__metadata__.tables[cls.__name__]['primary_key']
         sel = session.query(table)
@@ -1436,8 +1436,8 @@ class DataBaseModel(BaseModel):
                     cls, primary_key, column_name,
                     sel, tables_to_select, models_selected
                 )
-                if not foreign_model.__name__ in models_selected:
-                    models_selected.add(foreign_model.__name__)
+                if not foreign_model.__tablename__ in models_selected:
+                    models_selected.add(foreign_model.__tablename__)
                 continue
 
         sel, values = cls.where(sel, column_filters, *conditions)
@@ -1605,10 +1605,11 @@ class DataBaseModel(BaseModel):
         """
         self.__class__.get_table()
 
-        table_name = self.__class__.__name__
+        model_name = self.__class__.__name__
+        table_name = self.__class__.__tablename__
         database = self.__metadata__.database
 
-        primary_key = self.__metadata__.tables[table_name]['primary_key']
+        primary_key = self.__metadata__.tables[model_name]['primary_key']
 
         if not to_update:
             to_update = self.dict()
@@ -1618,9 +1619,9 @@ class DataBaseModel(BaseModel):
         if not where_:
             where_ = {primary_key: getattr(self, primary_key)}
 
-        table = self.__metadata__.tables[table_name]['table']
+        table = self.__metadata__.tables[model_name]['table']
         for column in to_update.copy():
-            if column in self.__metadata__.tables[table_name]['foreign_keys']:
+            if column in self.__metadata__.tables[model_name]['foreign_keys']:
                 continue
             if column not in table.c:
                 raise Exception(f"{column} is not a valid column in {table}")
@@ -1667,12 +1668,12 @@ class DataBaseModel(BaseModel):
             await model.delete()
         ```
         """
-        table_name = self.__class__.__name__
+        model_name = self.__class__.__name__
         database = self.__metadata__.database
         
-        table = self.__metadata__.tables[table_name]['table']
+        table = self.__metadata__.tables[model_name]['table']
 
-        primary_key = self.__metadata__.tables[table_name]['primary_key']
+        primary_key = self.__metadata__.tables[model_name]['primary_key']
         
         query, _ = self.where(delete(table), {primary_key: getattr(self, primary_key)})
 

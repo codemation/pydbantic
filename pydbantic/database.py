@@ -280,7 +280,7 @@ class Database():
                         existing_type_config = table.__metadata__.tables[table.__name__]['column_map'][field][0]
                         
                         result = op.alter_column(
-                            table.__name__, aliases[field], 
+                            table.__tablename__, aliases[field], 
                             nullable=False, 
                             new_column_name=field,
                             type_=existing_type_config['column_type'](
@@ -292,14 +292,14 @@ class Database():
                     await self.update_table_meta(table, existing=True)
 
                     new_table = sqlalchemy.Table(
-                        table.__name__,
+                        table.__tablename__,
                         self.metadata,
                         *table.convert_fields_to_columns()[0],
                         extend_existing=True
                     )
                     table.__metadata__.tables[table.__name__]['table'] = new_table
 
-                    self.log.info(f"{OP_str} Column: {field} in {table.__name__}")
+                    self.log.info(f"{OP_str} Column: {field} in {table.__tablename__}")
                     continue
                 
                 try:
@@ -373,7 +373,7 @@ class Database():
                 self.metadata.remove(table.__metadata__.tables[table.__name__]['table'])
                 
                 old_table = sqlalchemy.Table(
-                    table.__name__,
+                    table.__tablename__,
                     self.metadata,
                     *old_table_columns[0],
                 )
@@ -400,7 +400,7 @@ class Database():
                 
             if old_table is None:
                 old_table = sqlalchemy.Table(
-                    table.__name__,
+                    table.__tablename__,
                     self.metadata,
                     *old_table_columns[0],
                 )
@@ -411,7 +411,7 @@ class Database():
             [setattr(c, 'identity', None) for c in meta_tables[table.__name__].columns] 
 
             migration_table = sqlalchemy.Table(
-                table.__name__ + f'_{int(time.time())}',
+                table.__tablename__ + f'_{int(time.time())}',
                 self.metadata,
                 *meta_tables[table.__name__].columns,
             )
@@ -456,7 +456,7 @@ class Database():
             # create new table with new schema 
             table.__metadata__.tables[table.__name__]['table'] = migration_table
             new_table = sqlalchemy.Table(
-                table.__name__,
+                table.__tablename__,
                 self.metadata,
                 *table.convert_fields_to_columns()[0],
             )
@@ -490,7 +490,7 @@ class Database():
                 meta_table = await self.TableMeta.get(table_name=table.__name__)
                 
                 rollback_table = sqlalchemy.Table(
-                    table.__name__,
+                    table.__tablename__,
                     self.metadata,
                     *meta_table.columns,
 
