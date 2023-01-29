@@ -22,6 +22,7 @@ class Positions(DataBaseModel):
 
 class EmployeeInfo(DataBaseModel):
     #__renamed__= [{'old_name': 'first_name', 'new_name': 'first_names'}]
+    __tablename__ = "employee_info"
     ssn: Optional[int] = PrimaryKey(sqlalchemy_type=sqlalchemy.Integer, autoincrement=True)
     bio_id: str = Unique(default=uuid_str)
     first_name: str
@@ -34,6 +35,7 @@ class EmployeeInfo(DataBaseModel):
     employee: Optional[Union['Employee', dict]] = Relationship("Employee", 'bio_id', 'employee_id')
 
 class Employee(DataBaseModel):
+    __tablename__ = "employee"
     employee_id: str = PrimaryKey()
     emp_ssn: Optional[int] = ForeignKey(EmployeeInfo, 'ssn')
     employee_info: Optional[EmployeeInfo] = Relationship("EmployeeInfo", 'employee_id', 'bio_id')
