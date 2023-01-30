@@ -43,10 +43,12 @@ def db_url():
 async def empty_database_and_model_no_cache(request):
     db = await Database.create(
         request.param,
-        tables=[Employee, 
-                EmployeeInfo, 
-                Positions,
-                Department],
+        tables=[
+          EmployeeInfo, 
+          Employee,       
+          Positions,
+          Department
+        ],
         cache_enabled=False,
         testing=True
     )
@@ -59,8 +61,8 @@ async def database_with_cache(request):
     db = await Database.create(
             request.param,  
             tables=[
-                Employee, 
-                EmployeeInfo, 
+                EmployeeInfo,
+                Employee,              
                 Positions,
                 Department
             ],
@@ -90,7 +92,6 @@ async def load_db(db):
   {{
     "employee_id": "abcd{i}",
     "employee_info": {{
-      "ssn": "{i}",
       "first_name": "joe",
       "last_name": "last",
       "address": "{i} lane",

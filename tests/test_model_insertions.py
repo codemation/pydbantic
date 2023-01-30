@@ -15,7 +15,6 @@ async def test_model_insertions(loaded_database_and_model):
     new_employee = {
             'employee_id': 'abcd1990', 
             'employee_info': {
-                'ssn': '199', 
                 'first_name': 'joe', 
                 'last_name': 'last', 
                 'address': '199 lane', 

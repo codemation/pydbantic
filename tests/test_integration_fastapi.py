@@ -21,7 +21,7 @@ async def test_fastapi_integration(fastapi_app_with_loaded_database):
             try:
                 Employee(**employee)
             except Exception as e:
-                breakpoint()
+                pass
         
         response = client.get('/employees')
         assert response.status_code == 200
