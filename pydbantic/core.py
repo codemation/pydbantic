@@ -3,7 +3,8 @@ from pydantic.fields import PrivateAttr
 from sqlalchemy.sql.elements import UnaryExpression
 from sqlalchemy.sql.expression import delete
 from sqlalchemy.util.langhelpers import NoneType
-from pydantic import BaseModel, Field, ValidationError, PrivateAttr
+from pydantic.fields import FieldInfo as PydanticFieldInfo
+from pydantic import BaseModel, ValidationError, PrivateAttr
 import typing
 from typing import Awaitable, Callable, Coroutine, Optional, TypeVar, Union, List, Any, Tuple, ForwardRef
 import sqlalchemy
@@ -153,6 +154,15 @@ def get_field_config(
         config['relationship_model_column'] = relationship_model_column
 
     return Field(**config)
+
+class Field(PydanticFieldInfo):
+    def __init__(self, **kwargs: Any):
+        supported_config = {'default_factory'}
+        field_info_config = {k: kwargs[k] for k in supported_config if k in kwargs}
+        super().__init__(**field_info_config)
+        for k,v in kwargs.items():
+            setattr(self, k, v)
+
 
 class LinkTable:
     def __init__(
