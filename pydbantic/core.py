@@ -66,7 +66,7 @@ def Relationship(
     relationship_model: Any,
     relationship_local_column: str,
     relationship_model_column: str,
-    default=...
+    default = []
 ):
     return get_field_config(
         relationship_model=relationship_model,
@@ -85,11 +85,13 @@ def PrimaryKey(sqlalchemy_type = None, default=..., autoincrement: bool = None):
 
 def ForeignKey(
     foreign_model: Union["DataBaseModel", str], 
-    foreign_model_key: str
+    foreign_model_key: str,
+    default = None
 ):
     return get_field_config(
         foreign_model=foreign_model,
-        foreign_model_key=foreign_model_key
+        foreign_model_key=foreign_model_key,
+        default=default
     )
 
 def Default(sqlalchemy_type = None, default=..., autoincrement: bool = None):
@@ -137,6 +139,8 @@ def get_field_config(
     config = {}
     if isinstance(default, type(lambda x: x)):
         config['default_factory'] = default
+    if default is ...:
+        config['default'] = default
     if primary_key is not None:
         config['primary_key'] = primary_key
     if unique is not None:
@@ -145,6 +149,7 @@ def get_field_config(
         config['sqlalchemy_type'] = sqlalchemy_type
     if autoincrement is not None:
         config['autoincrement'] = autoincrement
+        config['default'] = None if default is ... else config['default']
     if foreign_model is not None:
         config['foreign_model'] = foreign_model
         config['foreign_model_key'] = foreign_model_key
