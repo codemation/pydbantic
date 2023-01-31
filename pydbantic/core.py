@@ -3,7 +3,8 @@ from pydantic.fields import PrivateAttr
 from sqlalchemy.sql.elements import UnaryExpression
 from sqlalchemy.sql.expression import delete
 from sqlalchemy.util.langhelpers import NoneType
-from pydantic import BaseModel, Field, ValidationError, PrivateAttr
+from pydantic.fields import FieldInfo as PydanticFieldInfo
+from pydantic import BaseModel, ValidationError, PrivateAttr
 import typing
 from typing import Awaitable, Callable, Coroutine, Optional, TypeVar, Union, List, Any, Tuple, ForwardRef
 import sqlalchemy
@@ -65,7 +66,7 @@ def Relationship(
     relationship_model: Any,
     relationship_local_column: str,
     relationship_model_column: str,
-    default=...
+    default = []
 ):
     return get_field_config(
         relationship_model=relationship_model,
@@ -74,7 +75,7 @@ def Relationship(
         default=default
     )
 
-def PrimaryKey(sqlalchemy_type = None, default=..., autoincrement: bool = None):
+def PrimaryKey(sqlalchemy_type = None, default=..., autoincrement: Union[bool, NoneType] = None):
     return get_field_config(
         default=default,
         primary_key=True,
@@ -84,11 +85,13 @@ def PrimaryKey(sqlalchemy_type = None, default=..., autoincrement: bool = None):
 
 def ForeignKey(
     foreign_model: Union["DataBaseModel", str], 
-    foreign_model_key: str
+    foreign_model_key: str,
+    default = None
 ):
     return get_field_config(
         foreign_model=foreign_model,
-        foreign_model_key=foreign_model_key
+        foreign_model_key=foreign_model_key,
+        default=default
     )
 
 def Default(sqlalchemy_type = None, default=..., autoincrement: bool = None):
@@ -136,6 +139,8 @@ def get_field_config(
     config = {}
     if isinstance(default, type(lambda x: x)):
         config['default_factory'] = default
+    if default is ...:
+        config['default'] = default
     if primary_key is not None:
         config['primary_key'] = primary_key
     if unique is not None:
@@ -144,6 +149,7 @@ def get_field_config(
         config['sqlalchemy_type'] = sqlalchemy_type
     if autoincrement is not None:
         config['autoincrement'] = autoincrement
+        config['default'] = None if default is ... else config['default']
     if foreign_model is not None:
         config['foreign_model'] = foreign_model
         config['foreign_model_key'] = foreign_model_key
@@ -153,6 +159,14 @@ def get_field_config(
         config['relationship_model_column'] = relationship_model_column
 
     return Field(**config)
+
+class Field(PydanticFieldInfo):
+    def __init__(self, **kwargs: Any):
+        supported_config = {'default_factory'}
+        field_info_config = {k: kwargs[k] for k in supported_config if k in kwargs}
+        super().__init__(**field_info_config)
+        for k,v in kwargs.items():
+            setattr(self, k, v)
 
 class LinkTable:
     def __init__(
@@ -596,10 +610,12 @@ class DataBaseModel(BaseModel):
         sqlalchemy_type_config = {}
         field_constraints = {}
         relationship_definitions = {}
-
         for field_property, config in field_properties.items():
+            if hasattr(cls.__fields__[field_property].field_info, '__dict__'):
+                config.update(cls.__fields__[field_property].field_info.__dict__)
             field_constraints[field_property] = []
             if 'primary_key' in config:
+                
                 if primary_key:
                     raise Exception(f"Duplicate Primary Key Specified for {cls.__name__}")
                 primary_key = field_property
@@ -614,6 +630,7 @@ class DataBaseModel(BaseModel):
                 default_fields[field_property] = config['default']
 
             if 'autoincrement' in config:
+                
                 autoincr_fields[field_property] = config['autoincrement']
             
             if 'sqlalchemy_type' in config:
