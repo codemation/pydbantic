@@ -75,7 +75,7 @@ def Relationship(
         default=default
     )
 
-def PrimaryKey(sqlalchemy_type = None, default=..., autoincrement: bool = None):
+def PrimaryKey(sqlalchemy_type = None, default=..., autoincrement: Union[bool, NoneType] = None):
     return get_field_config(
         default=default,
         primary_key=True,
@@ -167,7 +167,6 @@ class Field(PydanticFieldInfo):
         super().__init__(**field_info_config)
         for k,v in kwargs.items():
             setattr(self, k, v)
-
 
 class LinkTable:
     def __init__(
@@ -611,10 +610,12 @@ class DataBaseModel(BaseModel):
         sqlalchemy_type_config = {}
         field_constraints = {}
         relationship_definitions = {}
-
         for field_property, config in field_properties.items():
+            if hasattr(cls.__fields__[field_property].field_info, '__dict__'):
+                config.update(cls.__fields__[field_property].field_info.__dict__)
             field_constraints[field_property] = []
             if 'primary_key' in config:
+                
                 if primary_key:
                     raise Exception(f"Duplicate Primary Key Specified for {cls.__name__}")
                 primary_key = field_property
@@ -629,6 +630,7 @@ class DataBaseModel(BaseModel):
                 default_fields[field_property] = config['default']
 
             if 'autoincrement' in config:
+                
                 autoincr_fields[field_property] = config['autoincrement']
             
             if 'sqlalchemy_type' in config:
