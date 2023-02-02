@@ -1,7 +1,7 @@
 SQLAlchemy==1.4.28
 databases==0.6.0
 aioredis==2.0.0 
-pydantic==1.9.1
+pydantic>=1.9.1
 asyncpg==0.24.0
 aiosqlite==0.17.0
 alembic==1.8.1
