@@ -486,7 +486,9 @@ class DataBaseModel(BaseModel):
 
         local_column = cls.__metadata__.tables[cls.__name__]['primary_key']
         related_column =  cls.__metadata__.tables[related_model.__name__]['primary_key']
-        
+
+        relationship_definitions = cls.__metadata__.tables[name]['relationship_definitions'].get(related_model.__name__)
+
         if relationship_definitions:
             local_column = relationship_definitions['local_column']
             related_column = relationship_definitions['related_column']
