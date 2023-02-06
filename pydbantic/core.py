@@ -13,6 +13,21 @@ from sqlalchemy.orm import relationship, Session, Query
 from pickle import dumps, loads
 import importlib
 import sys
+from sqlalchemy.types import (
+    String,
+    Integer,
+    Numeric,
+    DateTime,
+    Date,
+    Time,
+    LargeBinary,
+    Boolean,
+    JSON,
+    ARRAY
+)
+
+
+T = TypeVar("T")
 
 class _Generic(BaseModel):
     pass
@@ -24,7 +39,7 @@ class RelationshipRef(BaseModel):
     primary_key: str
     value: Any
     _method_: Callable = PrivateAttr()
-    _default_: Callable = PrivateAttr()
+    _default_: Optional[Callable] = PrivateAttr()
     _model_: Callable = PrivateAttr()
     def __init__(self, model, primary_key, value, default=None):
 
@@ -74,8 +89,40 @@ def Relationship(
         relationship_model_column=relationship_model_column,
         default=default
     )
+from enum import Enum
 
-def PrimaryKey(sqlalchemy_type = None, default=..., autoincrement: Union[bool, NoneType] = None):
+all_sqlalchemy_types = Union[
+    String,
+    Integer,
+    Numeric,
+    DateTime,
+    Date,
+    Time,
+    LargeBinary,
+    Boolean,
+    JSON,
+    ARRAY,
+    None
+]
+
+
+def PrimaryKey(
+    sqlalchemy_type: Union[
+        String,
+        Integer,
+        Numeric,
+        DateTime,
+        Date,
+        Time,
+        LargeBinary,
+        Boolean,
+        JSON,
+        ARRAY,
+        None
+    ] = None, 
+    default=..., 
+    autoincrement: Union[bool, NoneType] = None
+):
     return get_field_config(
         default=default,
         primary_key=True,
@@ -84,7 +131,7 @@ def PrimaryKey(sqlalchemy_type = None, default=..., autoincrement: Union[bool, N
     )
 
 def ForeignKey(
-    foreign_model: Union["DataBaseModel", str], 
+    foreign_model: Union[T, str], 
     foreign_model_key: str,
     default = None
 ):
@@ -94,14 +141,46 @@ def ForeignKey(
         default=default
     )
 
-def Default(sqlalchemy_type = None, default=..., autoincrement: bool = None):
+def Default(
+    sqlalchemy_type: Union[
+        String,
+        Integer,
+        Numeric,
+        DateTime,
+        Date,
+        Time,
+        LargeBinary,
+        Boolean,
+        JSON,
+        ARRAY,
+        None
+    ] = None,
+    default=..., 
+    autoincrement: Optional[bool] = None
+):
     return get_field_config(
         default=default,
         autoincrement=autoincrement,
         sqlalchemy_type=sqlalchemy_type,
     )
 
-def Unique(sqlalchemy_type = None, default=...,  autoincrement: bool = None):
+def Unique(
+    sqlalchemy_type: Union[
+        String,
+        Integer,
+        Numeric,
+        DateTime,
+        Date,
+        Time,
+        LargeBinary,
+        Boolean,
+        JSON,
+        ARRAY,
+        None
+    ] = None, 
+    default=...,
+    autoincrement: Optional[bool] = None
+):
     return get_field_config(
         default=default,
         unique=True,
@@ -110,11 +189,23 @@ def Unique(sqlalchemy_type = None, default=...,  autoincrement: bool = None):
     )
 
 def ModelField(
-    sqlalchemy_type = None,
+    sqlalchemy_type: Union[
+        String,
+        Integer,
+        Numeric,
+        DateTime,
+        Date,
+        Time,
+        LargeBinary,
+        Boolean,
+        JSON,
+        ARRAY,
+        None
+    ] = None,
     default=...,
-    primary_key: bool = None,
-    unique: bool = None,
-    autoincrement: bool = None
+    primary_key: Optional[bool] = None,
+    unique: Optional[bool] = None,
+    autoincrement: Optional[bool] = None
 ):
     return get_field_config(
         default=default,
@@ -126,15 +217,15 @@ def ModelField(
 
 def get_field_config(
     default=...,
-    primary_key: bool = None,
-    unique: bool = None,
+    primary_key: Optional[bool] = None,
+    unique: Optional[bool] = None,
     sqlalchemy_type = None,
-    autoincrement: bool = None,
+    autoincrement: Optional[bool] = None,
     foreign_model: Any = None,
-    foreign_model_key: str = None,
-    relationship_model: Any = None,
-    relationship_local_column: str = None,
-    relationship_model_column: str = None,
+    foreign_model_key: Optional[str] = None,
+    relationship_model: Optional[str] = None,
+    relationship_local_column: Optional[str] = None,
+    relationship_model_column: Optional[str] = None,
 ):
     config = {}
     if isinstance(default, type(lambda x: x)):
@@ -330,15 +421,13 @@ class DataBaseModelAttribute:
             tuple(choices)
         )
 
-T = TypeVar("T")
-
 class DataBaseModel(BaseModel):
     __metadata__: BaseMeta = BaseMeta()
     class Config:
        arbitrary_types_allowed = True
         
     @classmethod
-    def check_if_subtype(cls, field):
+    def check_if_subtype(cls: Type[T], field):
 
         database_model = None
 
@@ -357,14 +446,14 @@ class DataBaseModel(BaseModel):
         return database_model
 
     @classmethod
-    def resolve_missing_module(cls, missing_error):
+    def resolve_missing_module(cls: Type[T], missing_error):
         cls.__metadata__.database.log.warning(f"detected {missing_error} - attempting to self correct")
         missing_module = missing_error[38:-3]
         module = importlib.new_module(missing_module)
         sys.modules[missing_module] = module
 
     @classmethod 
-    def resolve_missing_attribute(cls, missing_error: str, expected_type=None):
+    def resolve_missing_attribute(cls: Type[T], missing_error: str, expected_type=None):
         cls.__metadata__.database.log.warning(f"detected {missing_error} - attempting to self correct")
         try:
             missing_attr = ''.join(
@@ -393,7 +482,7 @@ class DataBaseModel(BaseModel):
             raise f"Failed to resolve {missing_error} with expected_type of {expected_type}"
     
     @classmethod
-    def deserialize(cls, data, expected_type = None):
+    def deserialize(cls: Type[T], data, expected_type = None):
         while True:
             try:
                 return loads(data) if data is not None else None
@@ -1423,7 +1512,7 @@ class DataBaseModel(BaseModel):
         count_rows: bool = False,
         join: bool = True,
         backward_refs: bool = True,
-        **column_filters: dict
+        **column_filters
     ) -> List[T]:
         table = cls.get_table()
         database = cls.__metadata__.database
@@ -1776,14 +1865,14 @@ class DataBaseModel(BaseModel):
         cls: Type[T], 
         *p_key_condition: DataBaseModelCondition, 
         backward_refs=True,
-        **p_key: dict
+        **primary_key_input
     ) -> T:
         if not p_key_condition:
-            for k in p_key:
+            for k in primary_key_input:
                 primary_key = cls.__metadata__.tables[cls.__name__]['primary_key']
                 if k != cls.__metadata__.tables[cls.__name__]['primary_key']:
                     raise Exception(f"Expected primary key {primary_key}=<value>")
-                p_key_condition = [getattr(cls, primary_key)  == p_key[k]]
+                p_key_condition = [getattr(cls, primary_key)  == primary_key_input[k]]
             
         result = await cls.filter(*p_key_condition, backward_refs=backward_refs)
         return result[0] if result else None
