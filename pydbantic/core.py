@@ -13,7 +13,8 @@ from sqlalchemy.orm import relationship, Session, Query
 from pickle import dumps, loads
 import importlib
 import sys
-from sqlalchemy.types import (
+
+from sqlalchemy import (
     String,
     Integer,
     Numeric,
@@ -23,14 +24,13 @@ from sqlalchemy.types import (
     LargeBinary,
     Boolean,
     JSON,
-    ARRAY
+    ARRAY,
+    VARCHAR
 )
 
 
 T = TypeVar("T")
 
-class _Generic(BaseModel):
-    pass
 
 def get_model_getter(model, primary_key, primary_key_value):
     return lambda : model.get(**{primary_key: primary_key_value})
@@ -91,7 +91,7 @@ def Relationship(
     )
 from enum import Enum
 
-all_sqlalchemy_types = Union[
+supported_sqlalchemy_types = [
     String,
     Integer,
     Numeric,
@@ -101,28 +101,24 @@ all_sqlalchemy_types = Union[
     LargeBinary,
     Boolean,
     JSON,
-    ARRAY,
-    None
+    VARCHAR
 ]
 
+def is_sqlalchemy_supported_type(sqlalchemy_type: Any) -> Boolean:
+    if sqlalchemy_type is None:
+        return True
+    if (
+            sqlalchemy_type not in supported_sqlalchemy_types
+            and sqlalchemy_type.__class__ not in supported_sqlalchemy_types
+    ):
+        raise Exception(f"{sqlalchemy_type} is not a supported type {supported_sqlalchemy_types}")
 
 def PrimaryKey(
-    sqlalchemy_type: Union[
-        String,
-        Integer,
-        Numeric,
-        DateTime,
-        Date,
-        Time,
-        LargeBinary,
-        Boolean,
-        JSON,
-        ARRAY,
-        None
-    ] = None, 
+    sqlalchemy_type: Any = None, 
     default=..., 
     autoincrement: Union[bool, NoneType] = None
-):
+) -> Any:
+    
     return get_field_config(
         default=default,
         primary_key=True,
@@ -134,7 +130,7 @@ def ForeignKey(
     foreign_model: Union[T, str], 
     foreign_model_key: str,
     default = None
-):
+) -> Any:
     return get_field_config(
         foreign_model=foreign_model,
         foreign_model_key=foreign_model_key,
@@ -142,22 +138,10 @@ def ForeignKey(
     )
 
 def Default(
-    sqlalchemy_type: Union[
-        String,
-        Integer,
-        Numeric,
-        DateTime,
-        Date,
-        Time,
-        LargeBinary,
-        Boolean,
-        JSON,
-        ARRAY,
-        None
-    ] = None,
+    sqlalchemy_type: Any = None,
     default=..., 
     autoincrement: Optional[bool] = None
-):
+) -> Any:
     return get_field_config(
         default=default,
         autoincrement=autoincrement,
@@ -165,22 +149,10 @@ def Default(
     )
 
 def Unique(
-    sqlalchemy_type: Union[
-        String,
-        Integer,
-        Numeric,
-        DateTime,
-        Date,
-        Time,
-        LargeBinary,
-        Boolean,
-        JSON,
-        ARRAY,
-        None
-    ] = None, 
+    sqlalchemy_type: Any = None, 
     default=...,
     autoincrement: Optional[bool] = None
-):
+) -> Any:
     return get_field_config(
         default=default,
         unique=True,
@@ -189,24 +161,12 @@ def Unique(
     )
 
 def ModelField(
-    sqlalchemy_type: Union[
-        String,
-        Integer,
-        Numeric,
-        DateTime,
-        Date,
-        Time,
-        LargeBinary,
-        Boolean,
-        JSON,
-        ARRAY,
-        None
-    ] = None,
+    sqlalchemy_type: Any = None,
     default=...,
     primary_key: Optional[bool] = None,
     unique: Optional[bool] = None,
     autoincrement: Optional[bool] = None
-):
+) -> Any:
     return get_field_config(
         default=default,
         primary_key=primary_key,
@@ -226,7 +186,7 @@ def get_field_config(
     relationship_model: Optional[str] = None,
     relationship_local_column: Optional[str] = None,
     relationship_model_column: Optional[str] = None,
-):
+) -> Any:
     config = {}
     if isinstance(default, type(lambda x: x)):
         config['default_factory'] = default
@@ -238,6 +198,7 @@ def get_field_config(
         config['unique'] = unique
     if sqlalchemy_type is not None:
         config['sqlalchemy_type'] = sqlalchemy_type
+        is_sqlalchemy_supported_type(sqlalchemy_type)
     if autoincrement is not None:
         config['autoincrement'] = autoincrement
         config['default'] = None if default is ... else config['default']
