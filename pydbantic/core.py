@@ -1176,7 +1176,7 @@ class DataBaseModel(BaseModel):
         order_by = None,
         primary_key: str = None,
         backward_refs: bool = True,
-    ) -> List[Optional[T]]:
+    ) -> List[T]:
         if alias is None:
             alias = {}
 
@@ -1393,7 +1393,7 @@ class DataBaseModel(BaseModel):
         offset: int = 0,
         order_by = None,
         backward_refs: bool = True
-    ) -> List[Optional[T]]:
+    ) -> List[T]:
         parameters = {}
         if limit:
             parameters['limit'] = limit
@@ -1424,7 +1424,7 @@ class DataBaseModel(BaseModel):
         join: bool = True,
         backward_refs: bool = True,
         **column_filters: dict
-    ) -> List[Optional[T]]:
+    ) -> List[T]:
         table = cls.get_table()
         database = cls.__metadata__.database
         session = Session(database.engine)
