@@ -6,7 +6,7 @@ from sqlalchemy.util.langhelpers import NoneType
 from pydantic.fields import FieldInfo as PydanticFieldInfo
 from pydantic import BaseModel, ValidationError, PrivateAttr
 import typing
-from typing import Awaitable, Callable, Coroutine, Optional, TypeVar, Union, List, Any, Tuple, ForwardRef
+from typing import Awaitable, Callable, Coroutine, Optional, TypeVar, Union, List, Any, Tuple, ForwardRef, Type
 import sqlalchemy
 from sqlalchemy import select, func, or_, and_
 from sqlalchemy.orm import relationship, Session, Query
@@ -330,7 +330,7 @@ class DataBaseModelAttribute:
             tuple(choices)
         )
 
-DataBaseModel = TypeVar('DataBaseModel')
+T = TypeVar("T")
 
 class DataBaseModel(BaseModel):
     __metadata__: BaseMeta = BaseMeta()
@@ -405,7 +405,7 @@ class DataBaseModel(BaseModel):
                 raise e
 
     @classmethod
-    async def refresh_models(cls):
+    async def refresh_models(cls: Type[T]) -> NoneType:
         """
         convert rows into .dict() & save back to DB, refreshing any changed 
         models
@@ -417,7 +417,7 @@ class DataBaseModel(BaseModel):
             await row.update()
 
     @classmethod
-    def setup(cls, database):
+    def setup(cls: Type[T], database):
         cls.__tablename__ = getattr(cls, '__tablename__', cls.__name__)
         cls.update_backward_refs()
         
@@ -428,21 +428,21 @@ class DataBaseModel(BaseModel):
             cls.generate_sqlalchemy_table()
 
     @classmethod
-    def init_set_metadata(cls, metadata) -> NoneType:
+    def init_set_metadata(cls: Type[T], metadata) -> NoneType:
         """
         Applies an instantiated sqlalchemy.MetaData() instance to __metadata__.metadata
         """
         cls.__metadata__.metadata = metadata
     
     @classmethod
-    def init_set_database(cls, database) -> NoneType:
+    def init_set_database(cls: Type[T], database) -> NoneType:
         """
         Applies an instantiated easydb.Database() instance to __metadata__.database
         """
         cls.__metadata__.database = database
 
     @classmethod
-    def generate_sqlalchemy_table(cls) -> NoneType:
+    def generate_sqlalchemy_table(cls: Type[T]) -> NoneType:
         if not hasattr(cls.__metadata__, 'metadata'):
             raise Exception(f"No connected sqlalchemy.MetaData() instance yet, first run {cls}.init_set_metadata()")
         name = cls.__name__
@@ -459,13 +459,11 @@ class DataBaseModel(BaseModel):
             cls.generate_relationship_table(data_base_model, field_name)
 
     @classmethod
-    def generate_relationship_table(cls, related_model: DataBaseModel, field_ref: str) -> NoneType:
+    def generate_relationship_table(cls: Type[T], related_model: T, field_ref: str) -> NoneType:
         """
         creates a 2 column table that enables a link between
         cls primary_key & related_model primary key 
         """
-        
-
         
         name = cls.__name__
         
@@ -528,7 +526,7 @@ class DataBaseModel(BaseModel):
 
 
     @classmethod 
-    def generate_model_attributes(cls) -> NoneType:
+    def generate_model_attributes(cls: Type[T]) -> NoneType:
         name = cls.__name__
         for c, column in cls.__metadata__.tables[name]['column_map'].items():
 
@@ -556,7 +554,7 @@ class DataBaseModel(BaseModel):
                 )
             )
     @classmethod
-    def update_backward_refs(cls):
+    def update_backward_refs(cls: Type[T]):
         """
         force update forward refs of all backward referncing DataBaseModels
         """
@@ -568,7 +566,7 @@ class DataBaseModel(BaseModel):
         
     @classmethod
     def convert_fields_to_columns(
-        cls, 
+        cls: Type[T], 
         model_fields: list = None, 
         include: list = None,
         alias: dict = None,
@@ -769,7 +767,7 @@ class DataBaseModel(BaseModel):
         return columns, link_tables
 
     async def serialize(
-        self: DataBaseModel, 
+        self: T, 
         data: dict, 
         insert: bool = False,
         update: bool = False,
@@ -907,7 +905,7 @@ class DataBaseModel(BaseModel):
 
         return values, link_chain
 
-    async def save(self: DataBaseModel, return_links: bool = False) -> NoneType:
+    async def save(self: T, return_links: bool = False) -> NoneType:
         primary_key = self.__metadata__.tables[self.__class__.__name__]['primary_key']
         count = await self.__class__.filter(
             **{primary_key: getattr(self, primary_key)},
@@ -958,7 +956,7 @@ class DataBaseModel(BaseModel):
         return query, tuple(values)
 
     @classmethod
-    def get_table(cls)-> sqlalchemy.Table:
+    def get_table(cls: Type[T])-> sqlalchemy.Table:
         if cls.__name__ not in cls.__metadata__.tables:
             cls.generate_sqlalchemy_table()
 
@@ -966,7 +964,7 @@ class DataBaseModel(BaseModel):
 
     @classmethod
     def OR(
-        cls, 
+        cls: Type[T], 
         *conditions: List[Union[DataBaseModelCondition, List[DataBaseModelCondition]]],
         **filters: dict
     ) -> DataBaseModelCondition:
@@ -1020,7 +1018,7 @@ class DataBaseModel(BaseModel):
         
 
     @classmethod
-    def gt(cls, column: str, value: Any) -> DataBaseModelCondition:
+    def gt(cls: Type[T], column: str, value: Any) -> DataBaseModelCondition:
         table = cls.get_table()
         if not column in table.c:
             raise Exception(f"{column} is not a valid column in {table}")
@@ -1032,7 +1030,7 @@ class DataBaseModel(BaseModel):
         )
 
     @classmethod
-    def gte(cls, column: str, value: Any) -> DataBaseModelCondition:
+    def gte(cls: Type[T], column: str, value: Any) -> DataBaseModelCondition:
         table = cls.get_table()
         if not column in table.c:
             raise Exception(f"{column} is not a valid column in {table}")
@@ -1043,7 +1041,7 @@ class DataBaseModel(BaseModel):
         )
 
     @classmethod
-    def lt(cls, column: str, value: Any) -> DataBaseModelCondition:
+    def lt(cls: Type[T], column: str, value: Any) -> DataBaseModelCondition:
         table = cls.get_table()
         if not column in table.c:
             raise Exception(f"{column} is not a valid column in {table}")
@@ -1054,7 +1052,7 @@ class DataBaseModel(BaseModel):
         )
 
     @classmethod
-    def lte(cls, column: str, value: Any) -> DataBaseModelCondition:
+    def lte(cls: Type[T], column: str, value: Any) -> DataBaseModelCondition:
         table = cls.get_table()
         if not column in table.c:
             raise Exception(f"{column} is not a valid column in {table}")
@@ -1065,7 +1063,7 @@ class DataBaseModel(BaseModel):
         )
 
     @classmethod
-    def contains(cls, column: str, value: Any) -> DataBaseModelCondition:
+    def contains(cls: Type[T], column: str, value: Any) -> DataBaseModelCondition:
         """
         returns a `DataBaseModelCondition` searching for `value` in a
         `column`
@@ -1081,21 +1079,21 @@ class DataBaseModel(BaseModel):
         )
 
     @classmethod
-    def desc(cls, column) -> UnaryExpression:
+    def desc(cls: Type[T], column) -> UnaryExpression:
         table = cls.get_table()
         if not column in table.c:
             raise Exception(f"{column} is not a valid column in {table}")
         return table.c[column].desc()
 
     @classmethod
-    def asc(cls, column) -> UnaryExpression:
+    def asc(cls: Type[T], column) -> UnaryExpression:
         table = cls.get_table()
         if not column in table.c:
             raise Exception(f"{column} is not a valid column in {table}")
         return table.c[column].asc()
     
     @classmethod
-    async def exists(cls,
+    async def exists(cls: Type[T],
         **column_values: dict
     ) -> bool:
 
@@ -1119,15 +1117,15 @@ class DataBaseModel(BaseModel):
 
     @classmethod
     def deep_join(
-        cls,
+        cls: Type[T],
         model_ref,
         model_ref_primary_key: str,
         column_ref: str,
         session_query: Query,
         tables_to_select: list,
         models_selected: set,
-        root_model: DataBaseModel = None,
-    ) -> Tuple[Query, List[Tuple[sqlalchemy.Table, DataBaseModel, str, DataBaseModel]]]:
+        root_model: T = None,
+    ) -> Tuple[Query, List[Tuple[sqlalchemy.Table, T, str, T]]]:
         """
         Traverse a DataBaseModel relationship and add subsequent 
         .join() clauses to active session_query, and append foreign tables
@@ -1169,7 +1167,7 @@ class DataBaseModel(BaseModel):
         return session_query, tables_to_select
 
     @classmethod
-    async def select(cls,
+    async def select(cls: Type[T],
         *selection: str,
         where: Optional[Union[dict, None]] = None,
         alias: Optional[dict] = None,
@@ -1178,7 +1176,7 @@ class DataBaseModel(BaseModel):
         order_by = None,
         primary_key: str = None,
         backward_refs: bool = True,
-    ) -> List[Optional[DataBaseModel]]:
+    ) -> List[Optional[T]]:
         if alias is None:
             alias = {}
 
@@ -1390,12 +1388,12 @@ class DataBaseModel(BaseModel):
 
     @classmethod
     async def all(
-        cls, 
+        cls: Type[T], 
         limit: int = None, 
         offset: int = 0,
         order_by = None,
         backward_refs: bool = True
-    ) -> List[Optional[DataBaseModel]]:
+    ) -> List[Optional[T]]:
         parameters = {}
         if limit:
             parameters['limit'] = limit
@@ -1407,7 +1405,7 @@ class DataBaseModel(BaseModel):
         return await cls.select('*', **parameters, backward_refs=backward_refs)
 
     @classmethod
-    async def count(cls) -> int:
+    async def count(cls: Type[T]) -> int:
         table = cls.get_table()
         database = cls.__metadata__.database
         session = Session(database.engine)
@@ -1417,7 +1415,7 @@ class DataBaseModel(BaseModel):
 
     @classmethod
     async def filter(
-        cls, 
+        cls: Type[T],
         *conditions: List[DataBaseModelCondition], 
         limit: int = None, 
         offset: int = 0,
@@ -1426,7 +1424,7 @@ class DataBaseModel(BaseModel):
         join: bool = True,
         backward_refs: bool = True,
         **column_filters: dict
-    ) -> List[Optional[DataBaseModel]]:
+    ) -> List[Optional[T]]:
         table = cls.get_table()
         database = cls.__metadata__.database
         session = Session(database.engine)
@@ -1660,8 +1658,8 @@ class DataBaseModel(BaseModel):
 
     @classmethod
     async def delete_many(
-        cls,
-        rows: List[DataBaseModel]
+        cls: Type[T],
+        rows: List[T]
     ):
         table = cls.get_table()
         database = cls.__metadata__.database
@@ -1700,8 +1698,8 @@ class DataBaseModel(BaseModel):
 
     @classmethod
     async def insert_many(
-        cls,
-        rows: List[DataBaseModel]
+        cls: Type[T],
+        rows: List[T]
     ):
         table = cls.get_table()
         database = cls.__metadata__.database
@@ -1775,11 +1773,11 @@ class DataBaseModel(BaseModel):
 
     @classmethod
     async def get(
-        cls, 
+        cls: Type[T], 
         *p_key_condition: DataBaseModelCondition, 
         backward_refs=True,
         **p_key: dict
-    ) -> DataBaseModel:
+    ) -> T:
         if not p_key_condition:
             for k in p_key:
                 primary_key = cls.__metadata__.tables[cls.__name__]['primary_key']
@@ -1791,13 +1789,11 @@ class DataBaseModel(BaseModel):
         return result[0] if result else None
 
     @classmethod
-    async def create(cls, **model_kwargs) -> DataBaseModel:
-        new_obj = cls(**model_kwargs)
+    async def create(cls: Type[T], **kwargs) -> T:
+        new_obj = cls(**kwargs)
         await new_obj.insert()
         return new_obj
-    def __init__(self, **model_kwargs) -> DataBaseModel:
-        return super().__init__(**model_kwargs)
-
+    
 
 class TableMeta(DataBaseModel):
     table_name: str = PrimaryKey()
