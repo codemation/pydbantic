@@ -3,7 +3,7 @@ import setuptools
 BASE_REQUIREMENTS = [
     'SQLAlchemy==1.4.28',
     'databases==0.5.3', 
-    'aioredis==2.0.0', 
+    'redis>=4.2.0', 
     'pydantic>=1.9.1',
     'alembic==1.8.1'
 ]

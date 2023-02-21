@@ -4,7 +4,7 @@ from collections import deque
 from pickle import dumps, loads
 import asyncio
 
-import aioredis
+from redis import asyncio as aioredis
 
 
 class Redis:
