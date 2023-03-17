@@ -1995,7 +1995,7 @@ class DataBaseModel(BaseModel):
                 primary_key = cls.__metadata__.tables[cls.__name__]["primary_key"]
                 if k != cls.__metadata__.tables[cls.__name__]["primary_key"]:
                     raise Exception(f"Expected primary key {primary_key}=<value>")
-                p_key_condition = (getattr(cls, primary_key) == primary_key_input[k],)
+                p_key_condition = [getattr(cls, primary_key) == primary_key_input[k]]
 
         result = await cls.filter(*p_key_condition, backward_refs=backward_refs)
         return result[0] if result else None
