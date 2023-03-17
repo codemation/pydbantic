@@ -1,0 +1,26 @@
+version: '3.2'
+
+services:
+  postgres:
+    image: postgres:11.16-alpine
+    container_name: pydbantic-postgres
+    platform: linux/amd64
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: database
+    command: postgres -c fsync=no -c full_page_writes=no
+    ports:
+      - "5432:5432"
+
+  mysql:
+    image: mysql
+    container_name: pydbantic-mysql
+    platform: linux/amd64
+    environment:
+      MYSQL_USER: mysqltestuser
+      MYSQL_PASSWORD: abcd1234
+      MYSQL_ROOT_PASSWORD: abcd1234
+      MYSQL_DATABASE: database
+    ports:
+      - "3306:3306"
