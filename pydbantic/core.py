@@ -1986,16 +1986,16 @@ class DataBaseModel(BaseModel):
     @classmethod
     async def get(
         cls: Type[T],
-        *p_key_condition: DataBaseModelCondition,
+        *p_key_condition: Tuple[DataBaseModelCondition],
         backward_refs=True,
         **primary_key_input,
-    ) -> Optional[T]:
+    ) -> T:
         if not p_key_condition:
             for k in primary_key_input:
                 primary_key = cls.__metadata__.tables[cls.__name__]["primary_key"]
                 if k != cls.__metadata__.tables[cls.__name__]["primary_key"]:
                     raise Exception(f"Expected primary key {primary_key}=<value>")
-                p_key_condition = getattr(cls, primary_key) == primary_key_input[k]
+                p_key_condition = (getattr(cls, primary_key) == primary_key_input[k],)
 
         result = await cls.filter(*p_key_condition, backward_refs=backward_refs)
         return result[0] if result else None
@@ -2015,5 +2015,5 @@ class TableMeta(DataBaseModel):
 
 class DatabaseInit(DataBaseModel):
     database_url: str = PrimaryKey()
-    status: Optional[str]
+    status: Optional[str] = None
     reservation: Optional[str]
