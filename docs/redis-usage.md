@@ -3,7 +3,7 @@ Redis can be enabled for use with Pydbantic by simply passing in a redis URL str
 
 ```python
 database = await Database.create(
-        sqlite:///company.db,  
+        sqlite:///company.db,
         tables=[Employee],
         cache_enabled=True,
         redis_url='redis://localhost'
@@ -11,5 +11,5 @@ database = await Database.create(
 ```
 
 ### Considerations
-When using redis or any caching, it is important to use the same cache target wherever the `DataBaseModel` and database is used. Cache invalidation depends on this to ensure data is consistently querried, updated, and deleted among all applications that might share the same `DataBaseModel`. 
+When using redis or any caching, it is important to use the same cache target wherever the `DataBaseModel` and database is used. Cache invalidation depends on this to ensure data is consistently queried, updated, and deleted among all applications that might share the same `DataBaseModel`.
 
