@@ -16,7 +16,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+          pip install -r requirements-test.txt
       - name: Lint
         run: pre-commit run --all-files
   test-postgres:
@@ -62,8 +62,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install -r requirements-test.txt
+          if [ -f requirements.txt ]; then pip install -r requirements-test.txt; fi
+
       - name: Run Tests - postgres
         run: |
           export ENV=postgres
@@ -108,8 +108,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install -r requirements-test.txt
+          if [ -f requirements.txt ]; then pip install -r requirements-test.txt; fi
       - name: Run Tests - mysql
         run: |
           export ENV=mysql
@@ -147,8 +146,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install -r requirements-test.txt
+          if [ -f requirements.txt ]; then pip install -r requirements-test.txt; fi
       - name: Run Tests - Sqlite
         run: |
           export ENV=sqlite
