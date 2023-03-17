@@ -1,6 +1,5 @@
-import time
-from typing import MutableSequence
 import pytest
+
 
 @pytest.mark.asyncio
 async def test_querying(loaded_database_and_model_with_cache):
@@ -20,28 +19,28 @@ async def test_querying(loaded_database_and_model_with_cache):
 
     assert emp_with_salary[0].salary == 40000
 
-    emp_with_salary = await Employee.filter(Employee.salary==40000)
+    emp_with_salary = await Employee.filter(Employee.salary == 40000)
 
     assert emp_with_salary[0].salary == 40000
 
     manager_position = emp_with_salary[0].position
-    #breakpoint()
+    # breakpoint()
     # filter on manager positions
     managers = await Employee.filter(
         position=manager_position[0],
-        salary=40000, 
-        employee_info=emp_with_salary[0].employee_info
+        salary=40000,
+        employee_info=emp_with_salary[0].employee_info,
     )
 
-    assert len(managers) ==1
+    assert len(managers) == 1
 
     # filter on manager positions
     managers = await Employee.filter(
-        Employee.position==manager_position[0], 
-        Employee.salary==40000, 
-        Employee.employee_info==emp_with_salary[0].employee_info
+        Employee.position == manager_position[0],
+        Employee.salary == 40000,
+        Employee.employee_info == emp_with_salary[0].employee_info,
     )
-    assert len(managers) ==1
+    assert len(managers) == 1
 
     assert managers[0].salary == 40000
 
@@ -51,11 +50,9 @@ async def test_querying(loaded_database_and_model_with_cache):
 
     assert manager.employee_id == managers[0].employee_id
 
-    manager = await Employee.get(Employee.employee_id==managers[0].employee_id)
+    manager = await Employee.get(Employee.employee_id == managers[0].employee_id)
 
     assert manager.employee_id == managers[0].employee_id
 
-    ranged_salary = await Employee.filter(
-        Employee.salary.inside([40000, 10000, 30000])
-    )
-    assert len(ranged_salary) ==1
+    ranged_salary = await Employee.filter(Employee.salary.inside([40000, 10000, 30000]))
+    assert len(ranged_salary) == 1

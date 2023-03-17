@@ -1,10 +1,9 @@
 ## Migrations Using Alembic
-Although Pydbantic can handle migrations automatically, alembic can also be used if preferred. Configuration can be done in a few easy steps
+Although Pydbantic can handle migrations automatically, alembic may also be used if preferred. Configuration can be done in a few easy steps
 
 ### Install alembic
-```bash
-pip install alembic
-```
+Generally no need to install alembic, as it is also a dependency of automatic migrations with `pydbantic`
+
 ### Define Models & DB instance
 ```python
 #models.py
@@ -35,14 +34,14 @@ db = Database.create(
     use_alembic=True
 )
 ```
-### Initialze alembic
+### Initialize alembic
 ```bash
 alembic init migrations
 ```
 Within the current directory, alembic will create a `migrations` folder that will store `versions` and its `env.py` that will need to updated. We will remove most of the boiler plate code and simply `import db` and use `db.alembic_migrate()`.
 
 
-Upate `migrations/env.py` file
+Update `migrations/env.py` file
 ```python
 #migrations/env.py
 from alembic import context
@@ -61,7 +60,7 @@ else:
 ```
 
 ### Creating the first migration file
-Until now, we have just told alembic where to store our migrations, and where our db is configured. We still have not created any database tables to match our `Employee` model. 
+Until now, we have just told alembic where to store our migrations, and where our db is configured. We still have not created any database tables to match our `Employee` model.
 ```bash
 alembic revision -m "init_migration" --autogenerate
 ```
@@ -70,14 +69,14 @@ Alembic is capable of detecting schema changes and often can do most of the work
 
 
 ### Trigger Migration
-The final step once we have created a migration file is to trigger the migration. The instructions defined in the latest `migrations/versions` will be followed. 
+The final step once we have created a migration file is to trigger the migration. The instructions defined in the latest `migrations/versions` will be followed.
 
 ```bash
 alembic upgrade head
 ```
 
 ### Run Application
-Now we are all set, we can Create new persistent instances of our model and trust they are safely stored. 
+Now we are all set, we can Create new persistent instances of our model and trust they are safely stored.
 
 ```python
 #app.py
@@ -92,7 +91,7 @@ async def main():
     )
     all_employees = await Employee.all()
     print(all_employees)
-    
+
 asyncio.run(main())
 ```
 

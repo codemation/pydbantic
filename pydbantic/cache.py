@@ -1,16 +1,17 @@
-import time
+import asyncio
 import logging
+import time
 from collections import deque
 from pickle import dumps, loads
-import asyncio
 
 from redis import asyncio as aioredis
 
 
 class Redis:
-    def __init__(self,
+    def __init__(
+        self,
         redis_url: str = "redis://localhost",
-        log: logging.Logger = logging.getLogger(__name__)
+        log: logging.Logger = logging.getLogger(__name__),
     ):
         self.redis = aioredis.from_url(redis_url)
         self.log = log
@@ -20,40 +21,34 @@ class Redis:
         if cache:
             return loads(cache)[0]
         return None
-        
+
     async def set(self, cached_key, row_and_flag: tuple):
         row, flags = row_and_flag
         await asyncio.gather(
-            self.redis.set(
-                cached_key, dumps(([dict(r) for r in row], flags))
-            ),
-            *[
-                self.redis.rpush(f'f_{flag}', cached_key)
-                for flag in flags
-            ],
+            self.redis.set(cached_key, dumps(([dict(r) for r in row], flags))),
+            *[self.redis.rpush(f"f_{flag}", cached_key) for flag in flags],
         )
 
     async def invalidate(self, flag: str):
         """
         invalidates cache flagged input flag str
         """
-        cache_keys = await self.redis.lrange(f'f_{flag}', 0, -1)
-        
+        cache_keys = await self.redis.lrange(f"f_{flag}", 0, -1)
+
         if not cache_keys:
             return
-        
-        await self.redis.delete(f'f_{flag}', *cache_keys)
-        self.log.debug(f"cache flag {flag} invalidated {len(cache_keys)} items")
 
+        await self.redis.delete(f"f_{flag}", *cache_keys)
+        self.log.debug(f"cache flag {flag} invalidated {len(cache_keys)} items")
 
 
 class Cache:
     """
     Used for managing cache rotation & retention, max len
     """
-    def __init__(self,
-        size: int = 1000,
-        log: logging.Logger = logging.getLogger(__name__)
+
+    def __init__(
+        self, size: int = 1000, log: logging.Logger = logging.getLogger(__name__)
     ):
         self.size = size
         self.timestamp_to_cache = {}
@@ -63,6 +58,7 @@ class Cache:
         self.flags = {}
 
         self.log = log
+
     def invalidate(self, flag: str):
         """
         invalidates cache flagged input flag str
@@ -72,10 +68,11 @@ class Cache:
         for timestamp in self.flags[flag]:
             if timestamp not in self.timestamp_to_cache:
                 continue
-            _,cached_key, _ = self.timestamp_to_cache[timestamp]
+            _, cached_key, _ = self.timestamp_to_cache[timestamp]
             del self.timestamp_to_cache[timestamp]
             del self.cache[cached_key]
         del self.flags[flag]
+
     def check_size_and_clear(self):
         if len(self.timestamp_to_cache) < self.size:
             return
@@ -88,7 +85,9 @@ class Cache:
             if cache_key in self.cache and self.cache[cache_key] != cache_time:
                 continue
             del self.cache[cache_key]
-            self.log.debug(f"# cach_key '{cache_key}' cleared due to cache length of {self.size} exceeded")
+            self.log.debug(
+                f"# cach_key '{cache_key}' cleared due to cache length of {self.size} exceeded"
+            )
 
     def update_timestamp(self, cached_key, flag):
         if cached_key not in self:
@@ -103,9 +102,10 @@ class Cache:
         self.cache[cached_key] = new_time
         self.flags[flag].add(new_time)
         self.access_history.append(new_time)
+
     def __iter__(self):
         return (
-            (cache_key, self.timestamp_to_cache[timestamp][0]) 
+            (cache_key, self.timestamp_to_cache[timestamp][0])
             for cache_key, timestamp in self.cache.copy().items()
         )
 
@@ -149,18 +149,3 @@ class Cache:
 
     def __contains__(self, cached_key):
         return cached_key in self.cache
-
-async def cache_main():
-    cache = Redis()
-    await cache.set('test', ('value', 'test_flag'))
-    cache_result = await cache.get('test')
-    print('cache_result', cache_result)
-
-
-if __name__ == '__main__':
-    cache = Cache(size=50)
-    for i in range(100):
-        cache[i] = i, 'test'
-    
-    
-    asyncio.run(cache_main())
