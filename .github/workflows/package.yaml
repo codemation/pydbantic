@@ -47,7 +47,7 @@ jobs:
 
       - name: Run Tests - mysql
         run: |
-          export ENV=postgres
+          export ENV=mysql
           make test
           make test-migrations
 
