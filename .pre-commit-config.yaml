@@ -8,8 +8,10 @@ repos:
           - id: check-symlinks
           - id: trailing-whitespace
           - id: check-json
+            exclude: .vscode/
           - id: debug-statements
           - id: pretty-format-json
+            exclude: .vscode/
             args: ["--autofix"]
     - repo: https://github.com/PyCQA/isort
       rev: 5.12.0
