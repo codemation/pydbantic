@@ -1,5 +1,6 @@
 import pytest
 
+
 @pytest.mark.asyncio
 async def test_model_updates(loaded_database_and_model):
     db, Employees = loaded_database_and_model
@@ -8,12 +9,12 @@ async def test_model_updates(loaded_database_and_model):
     employee = all_employees[0]
 
     # trigger update of sub-model
-    employee.employee_info.first_name = 'new name - updated'
+    employee.employee_info.first_name = "new name - updated"
     await employee.employee_info.update()
 
     updated_employee = await Employees.get(employee_id=employee.employee_id)
 
-    assert updated_employee.employee_info.first_name == 'new name - updated'
+    assert updated_employee.employee_info.first_name == "new name - updated"
 
     # same model update
     employee = updated_employee

@@ -1,5 +1,6 @@
 import pytest
 
+
 @pytest.mark.asyncio
 async def test_model_deletions(loaded_database_and_model):
     db, Employees = loaded_database_and_model
@@ -9,7 +10,7 @@ async def test_model_deletions(loaded_database_and_model):
     assert len(employee) == 200
     employee = employee[0]
 
-    await employee.delete()
+    res = await employee.delete()
 
     result = await Employees.all()
 
@@ -27,8 +28,8 @@ async def test_model_deletions(loaded_database_and_model):
         await employee2.insert()
     except Exception as e:
         pass
-    
-    employee2.employee_id += '_new'
+
+    employee2.employee_id += "_new"
     await employee2.insert()
 
     result = await Employees.all()
@@ -40,4 +41,3 @@ async def test_model_deletions(loaded_database_and_model):
     result = await Employees.all()
 
     assert len(result) == 0
-    
