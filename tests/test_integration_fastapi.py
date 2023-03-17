@@ -1,16 +1,17 @@
 import time
 
 import pytest
-from fastapi.testclient import TestClient
+from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
 async def test_fastapi_integration(fastapi_app_with_loaded_database):
-    with TestClient(fastapi_app_with_loaded_database) as client:
-
+    async with AsyncClient(
+        app=fastapi_app_with_loaded_database, base_url="http://test"
+    ) as test_client:
         from tests.models import Department, Employee, EmployeeInfo, Positions
 
-        response = client.get("/employees")
+        response = await test_client.get("/employees")
 
         assert response.status_code == 200
 
@@ -25,7 +26,7 @@ async def test_fastapi_integration(fastapi_app_with_loaded_database):
             except Exception as e:
                 pass
 
-        response = client.get("/employees")
+        response = await test_client.get("/employees")
         assert response.status_code == 200
 
         employees = response.json()
@@ -44,10 +45,10 @@ async def test_fastapi_integration(fastapi_app_with_loaded_database):
             new_employee = Employee(**employee)
 
             new_employee.employee_id = f'{employee["employee_id"]}_new_{time.time()}'
-            response = client.post("/employee", json=new_employee.dict())
+            response = await test_client.post("/employee", json=new_employee.dict())
             assert response.status_code == 200
 
-        response = client.get("/employees")
+        response = await test_client.get("/employees")
         assert response.status_code == 200
 
         employees = response.json()
@@ -63,7 +64,7 @@ async def test_fastapi_integration(fastapi_app_with_loaded_database):
 
             employee["employee_id"] = f'{employee["employee_id"]}_new_{time.time()}'
             employee["is_employed"] = "not a bool"
-            response = client.post("/employee", json=employee)
+            response = await test_client.post("/employee", json=employee)
 
             # should fail with 422
             assert response.status_code == 422
