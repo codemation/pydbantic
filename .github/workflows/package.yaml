@@ -11,7 +11,7 @@ jobs:
     #container: joshjamison/python38:latest
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.7, 3.8, 3.9, 3.10.8]
     # Service containers to run with `container-job`
     services:
       # Label used to access the service container
@@ -47,28 +47,9 @@ jobs:
           pip install -r requirements-test.txt
       - name: Run Tests - mysql
         run: |
-          for env in mysql; do
-            export ENV=$env; 
-            pytest tests/test_database.py -s -x;
-            pytest tests/test_integration_fastapi.py -s -x;
-            pytest tests/test_model_1_to_1.py -s -x;
-            pytest tests/test_model_advanced.py -s -x;
-            pytest tests/test_model_connections.py -s -x;
-            pytest tests/test_model_counting.py -s -x;
-            pytest tests/test_model_deletions.py -s -x;
-            pytest tests/test_model_filtering_operators.py -s -x;
-            pytest tests/test_model_insertions.py -s -x;
-            pytest tests/test_model_limit_offset.py -s -x;
-            pytest tests/test_model_many_to_many.py -s -x;
-            pytest tests/test_models.py -s -x;
-            pytest tests/test_model_updates.py -s -x;
-            pytest tests/test_query_caching.py -s -x;
-            pytest tests/test_querying.py -s -x;
-            pytest tests/test_query_no_caching.py -s -x;
-            for mig_test in {0..8}; do 
-              pytest tests/migrations/test_model_migration_$mig_test.py;
-            done
-          done
+          export ENV=postgres
+          make test
+          make test-migrations
 
   # Label of the container job
   test-sqlite:
@@ -78,7 +59,7 @@ jobs:
     #container: joshjamison/python38:latest
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.7, 3.8, 3.9, 3.10.8]
 
     # Service containers to run with `container-job`
     services:
@@ -105,36 +86,16 @@ jobs:
           pip install -r requirements-test.txt
       - name: Run Tests - Sqlite
         run: |
-          for env in sqlite; do
-            export ENV=$env; 
-            pytest tests/test_database.py -s -x;
-            pytest tests/test_integration_fastapi.py -s -x;
-            pytest tests/test_model_1_to_1.py -s -x;
-            pytest tests/test_model_advanced.py -s -x;
-            pytest tests/test_model_connections.py -s -x;
-            pytest tests/test_model_counting.py -s -x;
-            pytest tests/test_model_deletions.py -s -x;
-            pytest tests/test_model_filtering_operators.py -s -x;
-            pytest tests/test_model_insertions.py -s -x;
-            pytest tests/test_model_limit_offset.py -s -x;
-            pytest tests/test_model_many_to_many.py -s -x;
-            pytest tests/test_models.py -s -x;
-            pytest tests/test_model_updates.py -s -x;
-            pytest tests/test_query_caching.py -s -x;
-            pytest tests/test_querying.py -s -x;
-            pytest tests/test_query_no_caching.py -s -x;
-            for mig_test in {0..8}; do 
-              pytest tests/migrations/test_model_migration_$mig_test.py;
-            done
-          done
+          export ENV=sqlite
+          make test
+          make test-migrations
   test-postgres:
-    needs: test-mysql
     runs-on: ubuntu-latest
     # Docker Hub image that `container-job` executes in
     #container: joshjamison/python38:latest
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.7, 3.8, 3.9, 3.10.8]
 
     services:
       # Label used to access the service container
@@ -175,25 +136,6 @@ jobs:
           pip install -r requirements-test.txt
       - name: Run Tests - postgres
         run: |
-          for env in postgres; do
-            export ENV=$env; 
-            pytest tests/test_database.py -s -x;
-            pytest tests/test_integration_fastapi.py -s -x;
-            pytest tests/test_model_1_to_1.py -s -x;
-            pytest tests/test_model_advanced.py -s -x;
-            pytest tests/test_model_connections.py -s -x;
-            pytest tests/test_model_counting.py -s -x;
-            pytest tests/test_model_deletions.py -s -x;
-            pytest tests/test_model_filtering_operators.py -s -x;
-            pytest tests/test_model_insertions.py -s -x;
-            pytest tests/test_model_limit_offset.py -s -x;
-            pytest tests/test_model_many_to_many.py -s -x;
-            pytest tests/test_models.py -s -x;
-            pytest tests/test_model_updates.py -s -x;
-            pytest tests/test_query_caching.py -s -x;
-            pytest tests/test_querying.py -s -x;
-            pytest tests/test_query_no_caching.py -s -x;
-            for mig_test in {0..8}; do 
-              pytest tests/migrations/test_model_migration_$mig_test.py;
-            done
-          done
+          export ENV=postgres
+          make test
+          make test-migrations
