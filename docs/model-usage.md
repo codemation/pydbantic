@@ -1,7 +1,19 @@
 ## DataBaseModel Usage
 
 ### Model Definitions
-`DataBaseModel`s can be comprised of native `type` objects such as [str, int, float, bool, list, dict, tuple], `BaseModel` objects comprised and structured with native types and `BaseModels`, and lastly other related `DataBaseModel` objects. Data is automatically serialized before stored in a database when needed, and deseriaized to match the model's definition including related data. 
+`DataBaseModel`s can be comprised of native `type` objects:
+- `str`
+- `int`
+- `float`
+- `bool`
+- `list`
+- `dict`,
+- `tuple`
+- pydbantic `DataBaseModel` models
+- pydantic `BaseModel` models
+!!! INFO
+    `BaseModel` objects comprised and structured with native types and `BaseModel`s. Data is automatically serialized before stored in a database when needed, and deserialized to match the model's definition including related data.
+
 
 ```python
 from typing import List, Optional
@@ -39,12 +51,12 @@ class Employee(DataBaseModel):
 ```
 
 ### Model Usage - Creation
-`DataBaseModel` instances can be created in the same way as `pydantic` `BaseModel`'s, with some differences in how and when data becomes persistent.
+`DataBaseModel` instances can be created in the same way as `pydantic` creates `BaseModel` instances, but with some differences in how and when data becomes persistent.
 
 #### Create Model & Save Immediately in Database
 
 ```python
-# create department 
+# create department
 hr_department = await Department.create(
     id='d1234',
     name='hr'
@@ -52,10 +64,10 @@ hr_department = await Department.create(
     is_sensitive=True,
 )
 ```
-#### Create Model & Save to DB later
+#### Create Model & Manually Save to DB
 
 ```python
-# create department 
+# create department
 hr_department = Department(
     id='d1234',
     name='hr'
@@ -65,7 +77,7 @@ hr_department = Department(
 
 await hr_department.insert()
 ```
-#### Create Multiple Models 
+#### Create Multiple Models & Then Manually Save All At Once
 ```python
 departments = [
     Department(
@@ -80,10 +92,10 @@ await Department.insert_many(departments)
 ```
 
 
-#### Create Model & Save / Update Later
+#### Create Model & Insert or Update if exists
 
 ```python
-# create department 
+# create department
 hr_department = Department(
     id='d1234',
     name='hr'
@@ -96,11 +108,11 @@ await hr_department.save()
 ```
 
 ### Model Usage - Query / Filtering
-`DataBaseModel`s can be querried using filter which include absolute values such as integer_column=40, string_column='40', float_column=40.0 etc.. 
- 
+`DataBaseModel`s can be queried using filter which include absolute values such as integer_column=40, string_column='40', float_column=40.0 etc..
+
 
 #### Filtering
-In this example, `hr_manager` is a `DataBaseModel` named `Position` which has attributes indicating it's position in hr department. 
+In this example, `hr_manager` is a `DataBaseModel` named `Position` which has attributes indicating it's position in hr department.
 ```python
 # get all hr managers currently employed
 managers = await Employee.filter(
@@ -109,7 +121,7 @@ managers = await Employee.filter(
 )
 ```
 ##### Filtering - Operators
-`DataBaseModel`s can be filtered using `>`, `>=`, `<=`, `<`, `==`, and a `.inside([value1, value2, value3])` 
+`DataBaseModel`s can be filtered using `>`, `>=`, `<=`, `<`, `==`, and a `.inside([value1, value2, value3])`
 
 ```python
 # conditionals
@@ -176,17 +188,17 @@ employees_with_salary = await Employees.filter(
 ```
 
 #### Get - Primary Key
-Objects can be querrried by primary_key using .get() method on a `DataBaseModel` class.
+Objects can be queried by primary_key using .get() method on a `DataBaseModel` class.
 
 
-In this example, `Employee` objects are querried for an employee matching a specific 'id', 'id' is the `DataBaseModel` primary key, i.e the first entry in the model
+In this example, `Employee` objects are queried for an employee matching a specific 'id', 'id' is the `DataBaseModel` primary key, i.e the first entry in the model
 
 ```python
 an_employee = await Employee.get(id='abcd1234')
 ```
 
-#### All Objects
-All objects for a given `DataBaseModel` can be querried by using the `.all()` method. 
+#### Get All Objects
+All objects for a given `DataBaseModel` can be queried by using the `.all()` method.
 
 ```python
 all_employees = await Employee.all()
@@ -199,7 +211,7 @@ all_employees = await Employee.all()
 
 first_100 = await Employees.all(limit=100, offset=0)
 
-second_100 = await Empoyees.all(limit=100, offset=100)
+second_100 = await Employees.all(limit=100, offset=100)
 
 ```
 
@@ -225,7 +237,7 @@ employed_count = await Employees.filter(
 ```
 
 ### Model Usage - Updating
-Updates to `DataBaseModel` objects must be done directly via an object instance, related `DataBaseModel` field objects must be updated by calling the related fields object's `.save()` or `.update()` method. 
+Updates to `DataBaseModel` objects must be done directly via an object instance, related `DataBaseModel` field objects must be updated by calling the related fields object's `.save()` or `.update()` method.
 
 
 ```python
@@ -245,12 +257,12 @@ for employee in all_employees:
     await position.update()
 ```
 !!! TIP
-    `.save()` can also be used, but first verified object existence before attempting save, while `.update()` does not verify before attempting to update. 
+    `.save()` can also be used, but first verified object existence before attempting save, while `.update()` does not verify before attempting to update.
 
 ### Model Usage - Deleting
 
-#### Single 
-Much like updates, `DataBaseModel` objects can only be deleted by directly calling the `.delete()` method of an object instance. 
+#### Single
+Much like updates, `DataBaseModel` objects can only be deleted by directly calling the `.delete()` method of an object instance.
 
 
 ```python
@@ -297,7 +309,13 @@ class Journey(DataBaseModel):
 ```
 
 ### Overriding Models defaults
-`pydbantic` takes care of selecting a default sqlalchemy column type which corresponds to the annotated type. If desired, a desired sqlalchemy type can be provided along with any of the `PrimaryKey`, `Unique`, `ModelField`, `Default`. `DataBaseModels` which reference other `DataBaseModels` automatically create relationships based on each models `PrimaryKey`, but if desired, the exact reference column can be specified via `Relationship`. If only a foreign constraint, without a reference model population is needed, `ForeignKey` can also be used. `__tablename__` can be used to override the default database table name used by pydbantic, this is especially useful if integrating `pydbantic` into an environment with existing tables.  
+`pydbantic` takes care of selecting a default sqlalchemy column type which corresponds to the annotated type.
+
+If desired, a desired sqlalchemy type can be provided along with any of the `PrimaryKey`, `Unique`, `ModelField`, `Default`. `DataBaseModels` which reference other `DataBaseModels` automatically create relationships based on each models `PrimaryKey`, but if desired, the exact reference column can be specified via `Relationship`.
+
+If only a foreign constraint, without a reference model population is needed, `ForeignKey` can also be used.
+
+`__tablename__` can be used to override the default database table name used by pydbantic, this is especially useful if integrating `pydbantic` into an environment with existing tables.
 
 ```python
 from uuid import uuid4
@@ -323,8 +341,8 @@ class Positions(DataBaseModel):
     employees: List[Optional['Employee']] = []
 
 class EmployeeInfo(DataBaseModel):
-    __tablename__ = "employee_info" # intead of EmployeeInfo
-    ssn: Optional[int] = PrimaryKey(sqlalchemy_type=sqlalchemy.Integer, autoincrement=True)
+    __tablename__ = "employee_info" # instead of EmployeeInfo
+    ssn: Optional[int] = PrimaryKey(sqlalchemy.Integer, autoincrement=True)
     bio_id: str = Unique(sqlalchemy.String(50), default=uuid_str)
     first_name: str
     last_name: str
@@ -336,7 +354,7 @@ class EmployeeInfo(DataBaseModel):
     employee: Optional[Union['Employee', dict]] = Relationship("Employee", 'bio_id', 'employee_id')
 
 class Employee(DataBaseModel):
-    __tablename__ = "employee" # intead of Employee
+    __tablename__ = "employee" # instead of Employee
     employee_id: str = PrimaryKey()
     emp_ssn: Optional[int] = ForeignKey(EmployeeInfo, 'ssn')
     employee_info: Optional[EmployeeInfo] = Relationship("EmployeeInfo", 'employee_id', 'bio_id')
