@@ -25,7 +25,7 @@ jobs:
     #container: joshjamison/python38:latest
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.7, 3.8, 3.9, 3.10.8]
 
     services:
       # Label used to access the service container
@@ -123,7 +123,7 @@ jobs:
     #container: joshjamison/python38:latest
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.7, 3.8, 3.9, 3.10.8]
 
     # Service containers to run with `container-job`
     services:
