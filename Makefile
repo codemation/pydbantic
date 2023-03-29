@@ -15,6 +15,7 @@ test:
 	pytest tests/test_query_caching.py -s -x;
 	pytest tests/test_querying.py -s -x;
 	pytest tests/test_query_no_caching.py -s -x;
+	pytest tests/test_multiple_databases -s -x;
 
 test-migrations:
 	python tests/migrations/test_migrations.py
