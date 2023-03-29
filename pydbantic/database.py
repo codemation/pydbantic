@@ -14,7 +14,7 @@ from databases import Database as _Database
 from sqlalchemy import create_engine
 
 from pydbantic.cache import Redis
-from pydbantic.core import DatabaseInit, DataBaseModel, TableMeta
+from pydbantic.core import BaseMeta, DatabaseInit, DataBaseModel, TableMeta
 from pydbantic.translations import DEFAULT_TRANSLATIONS
 
 
@@ -49,6 +49,7 @@ class Database:
             else {},
         )
         self.use_alembic = use_alembic
+        self.__metadata__: BaseMeta = BaseMeta()
 
         self.DEFAULT_TRANSLATIONS = DEFAULT_TRANSLATIONS
 
