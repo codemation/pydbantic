@@ -209,6 +209,18 @@
             "cwd": "${workspaceFolder}"
         },
         {
+            "name": "test_multiple_databases)",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/test_multiple_databases.py",
+                "-sx"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
             "name": "test migrations)",
             "type": "python",
             "request": "launch",
