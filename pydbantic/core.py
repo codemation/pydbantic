@@ -28,6 +28,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Float,
     Integer,
     LargeBinary,
     Numeric,
@@ -79,16 +80,17 @@ def get_model_getter(model, primary_key, primary_key_value):
 
 
 class BaseMeta:
-    translations: dict = {
-        str: sqlalchemy.String,
-        int: sqlalchemy.Integer,
-        float: sqlalchemy.Float,
-        bool: sqlalchemy.Boolean,
-        dict: sqlalchemy.LargeBinary,
-        list: sqlalchemy.LargeBinary,
-        tuple: sqlalchemy.LargeBinary,
-    }
-    tables: dict = {}
+    def __init__(self):
+        self.translations: dict = {
+            str: sqlalchemy.String,
+            int: sqlalchemy.Integer,
+            float: sqlalchemy.Float,
+            bool: sqlalchemy.Boolean,
+            dict: sqlalchemy.LargeBinary,
+            list: sqlalchemy.LargeBinary,
+            tuple: sqlalchemy.LargeBinary,
+        }
+        self.tables: dict = {}
 
 
 def Relationship(
@@ -116,6 +118,7 @@ supported_sqlalchemy_types = [
     Boolean,
     JSON,
     VARCHAR,
+    Float,
 ]
 
 
@@ -402,8 +405,6 @@ class DataBaseModelAttribute:
 
 
 class DataBaseModel(BaseModel):
-    __metadata__: BaseMeta = BaseMeta()
-
     class Config:
         arbitrary_types_allowed = True
 
@@ -497,6 +498,7 @@ class DataBaseModel(BaseModel):
 
     @classmethod
     def setup(cls: Type[T], database) -> None:
+        cls.__metadata__ = database.__metadata__
         cls.__tablename__ = getattr(cls, "__tablename__", cls.__name__)
         cls.update_backward_refs()
 
