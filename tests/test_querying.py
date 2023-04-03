@@ -60,4 +60,4 @@ async def test_querying(loaded_database_and_model_with_cache):
     # filter using not equal operator
 
     employees = await Employee.filter(Employee.employee_id != managers[0].employee_id)
-    assert len(employees) > 19
+    assert len(employees) == 19
