@@ -700,7 +700,7 @@ class Database:
             if not self.connection_map[conn_id]["conn"].ag_running:
                 if time.time() - self.connection_map[conn_id]["last"] > 120:
                     try:
-                        await self.connection_map[conn_id].asend("finished")
+                        await self.connection_map[conn_id]["conn"].asend("finished")
                     except StopAsyncIteration:
                         pass
                     del self.connection_map[conn_id]
