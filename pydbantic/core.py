@@ -379,6 +379,14 @@ class DataBaseModelAttribute:
             (values,),
         )
 
+    def __ne__(self, value) -> DataBaseModelCondition:
+        values = self.process_value(value)
+        return DataBaseModelCondition(
+            f"{self.name} != {values}",
+            self.column != self.process_value(value),
+            (values,),
+        )
+
     def inside(self, choices: List[Any]) -> DataBaseModelCondition:
         choices = [self.process_value(value) for value in choices]
         return DataBaseModelCondition(
@@ -1936,7 +1944,7 @@ class DataBaseModel(BaseModel):
         except Exception:
             database.log.exception(f"chain link insertion error")
 
-        return result
+        return None
 
     async def _insert(
         self, return_links=False
