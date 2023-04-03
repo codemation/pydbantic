@@ -24,7 +24,7 @@ async def test_querying(loaded_database_and_model_with_cache):
     assert emp_with_salary[0].salary == 40000
 
     manager_position = emp_with_salary[0].position
-    # breakpoint()
+
     # filter on manager positions
     managers = await Employee.filter(
         position=manager_position[0],
@@ -56,3 +56,8 @@ async def test_querying(loaded_database_and_model_with_cache):
 
     ranged_salary = await Employee.filter(Employee.salary.inside([40000, 10000, 30000]))
     assert len(ranged_salary) == 1
+
+    # filter using not equal operator
+
+    employees = await Employee.filter(Employee.employee_id != managers[0].employee_id)
+    assert len(employees) > 19
