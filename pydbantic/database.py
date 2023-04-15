@@ -394,13 +394,13 @@ class Database:
         migration_order = Database.determine_migration_order(migrations_required.copy())
 
         if migrations_required:
-            self.log.warning(
+            self.log.info(
                 f"Migrations may be required. Will attempt in order: {migration_order}"
             )
 
         for table in migration_order:
             migration_blame = migrations_required[table.__name__]["blame"]
-            self.log.warning(f"Migration Required: {migration_blame}")
+            self.log.info(f"Migration Required: {migration_blame}")
             # migration required - re-create table with new schema
             to_select = [c for c in meta_tables[table.__name__].model]
 
@@ -445,7 +445,7 @@ class Database:
             for rel, link_table in table.__metadata__.tables[table.__name__][
                 "relationships"
             ].items():
-                self.log.warning(
+                self.log.info(
                     f"dropping related link-table {link_table.link_table.name}"
                 )
                 try:
@@ -522,7 +522,7 @@ class Database:
             for relationship, link_table in table.__metadata__.tables[table.__name__][
                 "relationships"
             ].items():
-                self.log.warning(
+                self.log.info(
                     f"re-creating related link-table {link_table.link_table.name}"
                 )
                 link_table.link_table.create()
@@ -590,7 +590,6 @@ class Database:
             self.metadata.create_all(self.engine)
 
         if reservation == database_init.reservation:
-            self.log.warning(f"database init - ready")
             database_init.status = "ready"
             await database_init.update()
 
@@ -663,17 +662,21 @@ class Database:
             **cache_config,
         )
 
-        if not use_alembic:
-
-            async def migrate():
-                async with new_db:
-                    await new_db.compare_tables_and_migrate()
-                new_db.metadata.create_all(new_db.engine)
-                return new_db
-
-            return migrate()
-
         return new_db
+
+    def __await__(self):
+        return self._migrate().__await__()
+
+    async def _migrate(self):
+        if self.use_alembic:
+            return self
+
+        async with self:
+            self.log.info(f"starting migration check")
+            await self.compare_tables_and_migrate()
+            self.log.info(f"completed migration check")
+        self.metadata.create_all(self.engine)
+        return self
 
     async def db_connection(self):
         async with _Database(self.DB_URL) as connection:

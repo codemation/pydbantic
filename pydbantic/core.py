@@ -9,6 +9,7 @@ from typing import (
     Callable,
     Coroutine,
     ForwardRef,
+    Iterable,
     List,
     Optional,
     Tuple,
@@ -42,6 +43,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Query, Session, relationship
 from sqlalchemy.sql.elements import UnaryExpression
 from sqlalchemy.sql.expression import delete
+from sqlalchemy.sql.functions import count
 from sqlalchemy.util.langhelpers import NoneType
 
 T = TypeVar("T")
@@ -411,13 +413,16 @@ class DataBaseModelAttribute:
             f"{self.name} not in {choices}", self.column.not_in(choices), tuple(choices)
         )
 
+    def count(self) -> count:
+        return count(self.column)
+
 
 class DataBaseModel(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
     @classmethod
-    def check_if_subtype(cls: Type[T], field):
+    def check_if_subtype(cls, field):
 
         database_model = None
 
@@ -438,7 +443,7 @@ class DataBaseModel(BaseModel):
         return database_model
 
     @classmethod
-    def resolve_missing_module(cls: Type[T], missing_error):
+    def resolve_missing_module(cls, missing_error):
         cls.__metadata__.database.log.warning(
             f"detected {missing_error} - attempting to self correct"
         )
@@ -447,7 +452,7 @@ class DataBaseModel(BaseModel):
         sys.modules[missing_module] = module
 
     @classmethod
-    def resolve_missing_attribute(cls: Type[T], missing_error: str, expected_type=None):
+    def resolve_missing_attribute(cls, missing_error: str, expected_type=None):
         cls.__metadata__.database.log.warning(
             f"detected {missing_error} - attempting to self correct"
         )
@@ -493,7 +498,7 @@ class DataBaseModel(BaseModel):
             )
 
     @classmethod
-    def deserialize(cls: Type[T], data, expected_type=None):
+    def deserialize(cls, data, expected_type=None):
         while True:
             try:
                 return loads(data) if data is not None else None
@@ -505,7 +510,7 @@ class DataBaseModel(BaseModel):
                 raise e
 
     @classmethod
-    def setup(cls: Type[T], database) -> None:
+    def setup(cls, database):
         cls.__metadata__ = database.__metadata__
         cls.__tablename__ = getattr(cls, "__tablename__", cls.__name__)
         cls.update_backward_refs()
@@ -531,7 +536,7 @@ class DataBaseModel(BaseModel):
         cls.__metadata__.database = database
 
     @classmethod
-    def generate_sqlalchemy_table(cls: Type[T]) -> None:
+    def generate_sqlalchemy_table(cls) -> None:
         if not hasattr(cls.__metadata__, "metadata"):
             raise Exception(
                 f"No connected sqlalchemy.MetaData() instance yet, first run {cls}.init_set_metadata()"
@@ -551,9 +556,7 @@ class DataBaseModel(BaseModel):
             cls.generate_relationship_table(data_base_model, field_name)
 
     @classmethod
-    def generate_relationship_table(
-        cls: Type[T], related_model: T, field_ref: str
-    ) -> NoneType:
+    def generate_relationship_table(cls: Type[T], related_model: T, field_ref: str):
         """
         creates a 2 column table that enables a link between
         cls primary_key & related_model primary key
@@ -631,10 +634,9 @@ class DataBaseModel(BaseModel):
         )
 
     @classmethod
-    def generate_model_attributes(cls: Type[T]) -> NoneType:
+    def generate_model_attributes(cls):
         name = cls.__name__
         for c, column in cls.__metadata__.tables[name]["column_map"].items():
-
             foreign_model = None
             if c in cls.__metadata__.tables[name]["foreign_keys"]:
                 foreign_model = cls.__metadata__.tables[name]["foreign_keys"][c]
@@ -660,7 +662,7 @@ class DataBaseModel(BaseModel):
             )
 
     @classmethod
-    def update_backward_refs(cls: Type[T]):
+    def update_backward_refs(cls):
         """
         force update forward refs of all backward referncing DataBaseModels
         """
@@ -671,7 +673,7 @@ class DataBaseModel(BaseModel):
 
     @classmethod
     def convert_fields_to_columns(
-        cls: Type[T],
+        cls,
         model_fields: Optional[list] = None,
         include: Optional[list] = None,
         alias: Optional[dict] = None,
@@ -906,7 +908,7 @@ class DataBaseModel(BaseModel):
         return columns, link_tables
 
     async def serialize(
-        self: T, data: dict, insert: bool = False, update: bool = False, alias=None
+        self, data: dict, insert: bool = False, update: bool = False, alias=None
     ) -> Tuple[dict, List[Awaitable]]:
         """
         expects
@@ -932,7 +934,6 @@ class DataBaseModel(BaseModel):
                 del values[k]
                 continue
 
-            skip = False
             if k in self.__metadata__.tables[name]["foreign_keys"]:
 
                 # use the foreign DataBaseModel's primary key / value
@@ -1100,7 +1101,7 @@ class DataBaseModel(BaseModel):
         return query, tuple(values)
 
     @classmethod
-    def get_table(cls: Type[T]) -> sqlalchemy.Table:
+    def get_table(cls) -> sqlalchemy.Table:
         if cls.__name__ not in cls.__metadata__.tables:
             cls.generate_sqlalchemy_table()
 
@@ -1108,7 +1109,7 @@ class DataBaseModel(BaseModel):
 
     @classmethod
     def OR(
-        cls: Type[T],
+        cls,
         *conditions: List[Union[DataBaseModelCondition, List[DataBaseModelCondition]]],
         **filters: dict,
     ) -> DataBaseModelCondition:
@@ -1163,7 +1164,7 @@ class DataBaseModel(BaseModel):
         )
 
     @classmethod
-    def gt(cls: Type[T], column: str, value: Any) -> DataBaseModelCondition:
+    def gt(cls, column: str, value: Any) -> DataBaseModelCondition:
         table = cls.get_table()
         if not column in table.c:
             raise Exception(f"{column} is not a valid column in {table}")
@@ -1173,7 +1174,7 @@ class DataBaseModel(BaseModel):
         )
 
     @classmethod
-    def gte(cls: Type[T], column: str, value: Any) -> DataBaseModelCondition:
+    def gte(cls, column: str, value: Any) -> DataBaseModelCondition:
         table = cls.get_table()
         if not column in table.c:
             raise Exception(f"{column} is not a valid column in {table}")
@@ -1182,7 +1183,7 @@ class DataBaseModel(BaseModel):
         )
 
     @classmethod
-    def lt(cls: Type[T], column: str, value: Any) -> DataBaseModelCondition:
+    def lt(cls, column: str, value: Any) -> DataBaseModelCondition:
         table = cls.get_table()
         if not column in table.c:
             raise Exception(f"{column} is not a valid column in {table}")
@@ -1191,7 +1192,7 @@ class DataBaseModel(BaseModel):
         )
 
     @classmethod
-    def lte(cls: Type[T], column: str, value: Any) -> DataBaseModelCondition:
+    def lte(cls, column: str, value: Any) -> DataBaseModelCondition:
         table = cls.get_table()
         if not column in table.c:
             raise Exception(f"{column} is not a valid column in {table}")
@@ -1200,7 +1201,7 @@ class DataBaseModel(BaseModel):
         )
 
     @classmethod
-    def contains(cls: Type[T], column: str, value: Any) -> DataBaseModelCondition:
+    def contains(cls, column: str, value: Any) -> DataBaseModelCondition:
         """
         returns a `DataBaseModelCondition` searching for `value` in a
         `column`
@@ -1214,21 +1215,21 @@ class DataBaseModel(BaseModel):
         )
 
     @classmethod
-    def desc(cls: Type[T], column) -> UnaryExpression:
+    def desc(cls, column) -> UnaryExpression:
         table = cls.get_table()
         if not column in table.c:
             raise Exception(f"{column} is not a valid column in {table}")
         return table.c[column].desc()
 
     @classmethod
-    def asc(cls: Type[T], column) -> UnaryExpression:
+    def asc(cls, column) -> UnaryExpression:
         table = cls.get_table()
         if not column in table.c:
             raise Exception(f"{column} is not a valid column in {table}")
         return table.c[column].asc()
 
     @classmethod
-    async def exists(cls: Type[T], **column_values: dict) -> bool:
+    async def exists(cls, **column_values: dict) -> bool:
 
         table = cls.get_table()
         primary_key = cls.__metadata__.tables[cls.__name__]["primary_key"]
@@ -1308,7 +1309,7 @@ class DataBaseModel(BaseModel):
     @classmethod
     async def select(
         cls: Type[T],
-        *selection: str,
+        *selection,
         where: Optional[Union[dict, None]] = None,
         alias: Optional[dict] = None,
         limit: Optional[int] = None,
@@ -1590,7 +1591,7 @@ class DataBaseModel(BaseModel):
         return await cls.select("*", **parameters, backward_refs=backward_refs)
 
     @classmethod
-    async def count(cls: Type[T]) -> int:
+    async def count(cls) -> int:
         table = cls.get_table()
         database = cls.__metadata__.database
         session = Session(database.engine)
@@ -1666,7 +1667,14 @@ class DataBaseModel(BaseModel):
             sel = sel.order_by(order_by)
 
         results = await database.fetch(sel, models_selected, tuple(values))
+        return cls.parse_results(results, tables_to_select, backward_refs)
 
+    @classmethod
+    def parse_results(
+        cls: Type[T], results: List[Tuple], tables_to_select, backward_refs
+    ) -> List[T]:
+        table = cls.get_table()
+        primary_key = cls.__metadata__.tables[cls.__name__]["primary_key"]
         results_map = {}
         last_ind = -1
         for i, c in enumerate(table.c):
@@ -1930,8 +1938,12 @@ class DataBaseModel(BaseModel):
         data = [await row.serialize(row.dict(), insert=True) for row in rows]
 
         links = []
+        values = []
+
         values = [d[0] for d in data]
         [links.extend(d[1]) for d in data]
+
+        result = None
         try:
             result = await database.execute_many(query, values)
         except Exception as e:
@@ -1940,7 +1952,10 @@ class DataBaseModel(BaseModel):
                 link.close()
 
         try:
-            await asyncio.gather(*[asyncio.shield(l) for l in links])
+            while links:
+                await asyncio.gather(*[asyncio.shield(l) for l in links[:50]])
+                del links[:50]
+
         except Exception:
             database.log.exception(f"chain link insertion error")
 
@@ -1961,12 +1976,17 @@ class DataBaseModel(BaseModel):
         values, links = await self.serialize(self.dict(), insert=True)
 
         query = table.insert(values)
+        result = None
         try:
             result = await self.__metadata__.database.execute(query, values)
         except Exception as e:
             database.log.error(f"error inserting into {table.name} - error: {repr(e)}")
             for link in links:
                 link.close()
+            if return_links:
+                return []
+
+            # raise exception when not related to inserting links
             raise e
 
         if return_links:
@@ -1974,9 +1994,9 @@ class DataBaseModel(BaseModel):
 
         # run links in chain
         try:
-            await asyncio.gather(*[asyncio.shield(l) for l in links])
+            await asyncio.gather(*[asyncio.shield(l) for l in links if l])
         except Exception:
-            database.log.exception(f"chain link insertion error")
+            pass
 
         return result
 
