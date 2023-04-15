@@ -20,5 +20,6 @@ for test in [
     "tests/test_querying.py",
     "tests/test_query_no_caching.py",
 ]:
-    pytest.main([test])
+    result = pytest.main([test])
+    assert result == 0
     time.sleep(2)
