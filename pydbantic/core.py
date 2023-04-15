@@ -1985,7 +1985,9 @@ class DataBaseModel(BaseModel):
                 link.close()
             if return_links:
                 return []
-            # raise e
+
+            # raise exception when not related to inserting links
+            raise e
 
         if return_links:
             return links
