@@ -52,7 +52,7 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-          -c 'max_connections=200'
+          --max_connections 200
     steps:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
