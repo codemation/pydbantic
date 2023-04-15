@@ -35,25 +35,11 @@ jobs:
         # Provide the password for postgres
         ports:
           - 6379:6379
-      postgres:
-        # Docker Hub image
-        image: postgres
-        command: postgres -c 'max_connections=250'
-        # Provide the password for postgres
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: database
-        ports:
-          - 5432:5432
-
-        # Set health checks to wait until postgres has started
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
+      - name: start postgres
+        run: |
+          docker-compose up -d postgres
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
