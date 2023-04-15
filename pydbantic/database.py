@@ -665,7 +665,7 @@ class Database:
         return new_db
 
     def __await__(self):
-        return self._migrate.__await__()
+        return self._migrate().__await__()
 
     async def _migrate(self):
         if self.use_alembic:
@@ -676,6 +676,7 @@ class Database:
             await self.compare_tables_and_migrate()
             self.log.info(f"completed migration check")
         self.metadata.create_all(self.engine)
+        return self
 
     async def db_connection(self):
         async with _Database(self.DB_URL) as connection:

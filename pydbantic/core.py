@@ -1674,6 +1674,7 @@ class DataBaseModel(BaseModel):
         cls: Type[T], results: List[Tuple], tables_to_select, backward_refs
     ) -> List[T]:
         table = cls.get_table()
+        primary_key = cls.__metadata__.tables[cls.__name__]["primary_key"]
         results_map = {}
         last_ind = -1
         for i, c in enumerate(table.c):
