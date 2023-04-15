@@ -36,15 +36,14 @@ jobs:
         ports:
           - 6379:6379
     steps:
-      - name: start postgres
-        run: |
-          docker-compose up -d postgres
-
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
       - name: Check out repository code
+      - name: start postgres
+        run: |
+          docker-compose up -d postgres
         uses: actions/checkout@v2
       - name: Install dependencies
         run: |
