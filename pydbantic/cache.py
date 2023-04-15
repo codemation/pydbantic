@@ -13,7 +13,8 @@ class Redis:
         redis_url: str = "redis://localhost",
         log: logging.Logger = logging.getLogger(__name__),
     ):
-        self.redis = aioredis.from_url(redis_url)
+        self.pool = aioredis.ConnectionPool.from_url(redis_url)
+        self.redis = aioredis.Redis(connection_pool=self.pool)
         self.log = log
 
     async def get(self, key):
