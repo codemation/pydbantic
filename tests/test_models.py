@@ -1,7 +1,7 @@
 import pytest
 
 from pydbantic import Database
-from tests.models import Employee
+from tests.models import Child, Employee, Parent
 
 
 @pytest.mark.asyncio
@@ -53,3 +53,14 @@ async def test_models(database_with_cache):
     assert result[0].position[0].name == employee.position[0].name
     assert result[0].salary == employee.salary
     assert result[0].is_employed == employee.is_employed
+
+    parent = await Parent.create(name="bob", sex="MALE")
+    child = await Child.create(name="joe", parent=parent.name)
+
+    assert await Parent.all()
+    assert await Child.all()
+
+    await parent.delete()
+
+    assert not await Parent.all()
+    assert not await Child.all()
