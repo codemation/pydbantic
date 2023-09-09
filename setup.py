@@ -4,7 +4,8 @@ BASE_REQUIREMENTS = [
     "SQLAlchemy==1.4.28",
     "databases==0.5.3",
     "redis>=4.2.0",
-    "pydantic>=1.9.1,pydantic<2",
+    "pydantic>=1.9.1",
+    "pydantic<2",
     "alembic==1.8.1",
 ]
 MYSQL_REQUIREMENTS = [
