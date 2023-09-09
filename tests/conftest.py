@@ -8,7 +8,7 @@ from fastapi import APIRouter, FastAPI
 
 from pydbantic import Database
 from pydbantic.cache import Redis
-from tests.models import Department, Employee, EmployeeInfo, Positions
+from tests.models import Child, Department, Employee, EmployeeInfo, Parent, Positions
 
 DB_PATH = {
     "sqlite": "sqlite:///test.db",
@@ -52,7 +52,7 @@ async def database_with_cache(request):
 
     db = await Database.create(
         request.param,
-        tables=[EmployeeInfo, Employee, Positions, Department],
+        tables=[EmployeeInfo, Employee, Positions, Department, Parent, Child],
         cache_enabled=False,
         testing=True,
     )

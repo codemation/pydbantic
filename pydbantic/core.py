@@ -151,12 +151,20 @@ def PrimaryKey(
 
 
 def ForeignKey(
-    foreign_model: Union[T, str], foreign_model_key: str, default=None
+    foreign_model: Union[T, str],
+    foreign_model_key: str,
+    default=None,
+    ondelete: Optional[str] = None,
 ) -> Any:
+    """
+    ondelete:
+        "CASCADE"
+    """
     return get_field_config(
         foreign_model=foreign_model,
         foreign_model_key=foreign_model_key,
         default=default,
+        foreign_model_ondelete=ondelete,
     )
 
 
@@ -205,6 +213,7 @@ def get_field_config(
     autoincrement: Optional[bool] = None,
     foreign_model: Any = None,
     foreign_model_key: Optional[str] = None,
+    foreign_model_ondelete: Optional[str] = None,
     relationship_model: Optional[str] = None,
     relationship_local_column: Optional[str] = None,
     relationship_model_column: Optional[str] = None,
@@ -227,6 +236,8 @@ def get_field_config(
     if foreign_model is not None:
         config["foreign_model"] = foreign_model
         config["foreign_model_key"] = foreign_model_key
+        if foreign_model_ondelete is not None:
+            config["ondelete"] = foreign_model_ondelete
     if relationship_model is not None:
         config["relationship_model"] = relationship_model
         config["relationship_local_column"] = relationship_local_column
@@ -761,12 +772,16 @@ class DataBaseModel(BaseModel):
                     if "foreign_model_key" not in config
                     else config["foreign_model_key"]
                 )
-
+                ondelete_config = {}
+                if "ondelete" in config:
+                    ondelete_config["ondelete"] = config["ondelete"]
                 # foreign_model_sqlalchemy_type = cls.__metadata__.tables[foreign_model_name]['column_map'][foreign_model_key][0]
                 # sqlalchemy_type_config[field_property] = foreign_model_sqlalchemy_type
 
                 field_constraints[field_property].append(
-                    sqlalchemy.ForeignKey(f"{foreign_table_name}.{foreign_model_key}")
+                    sqlalchemy.ForeignKey(
+                        f"{foreign_table_name}.{foreign_model_key}", **ondelete_config
+                    )
                 )
             if "relationship_model" in config:
                 relationship_definitions[config["relationship_model"]] = {

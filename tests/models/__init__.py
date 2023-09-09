@@ -11,6 +11,16 @@ def uuid_str():
     return str(uuid4())
 
 
+class Parent(DataBaseModel):
+    name: str = PrimaryKey()
+    sex: str
+
+
+class Child(DataBaseModel):
+    name: str = PrimaryKey()
+    parent: str = ForeignKey(Parent, foreign_model_key="name", ondelete="CASCADE")
+
+
 class Department(DataBaseModel):
     department_id: str = PrimaryKey()
     name: str

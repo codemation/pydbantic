@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sqlite3
 import time
 import uuid
 from copy import deepcopy
@@ -11,11 +12,18 @@ from alembic import context
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from databases import Database as _Database
+from databases import backends
 from sqlalchemy import create_engine
 
 from pydbantic.cache import Redis
 from pydbantic.core import BaseMeta, DatabaseInit, DataBaseModel, TableMeta
 from pydbantic.translations import DEFAULT_TRANSLATIONS
+
+
+class SQLiteConnection(sqlite3.Connection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.execute("pragma foreign_keys=1")
 
 
 class Database:
@@ -679,7 +687,11 @@ class Database:
         return self
 
     async def db_connection(self):
-        async with _Database(self.DB_URL) as connection:
+        conn_factory = (
+            {"factory": SQLiteConnection} if "sqlite" in self.DB_URL.lower() else {}
+        )
+
+        async with _Database(self.DB_URL, **conn_factory) as connection:
             while True:
                 status = yield connection
                 if status == "finished":
