@@ -36,6 +36,7 @@ class Database:
         debug: bool = False,
         testing: bool = False,
         use_alembic: bool = False,
+        echo: bool = False,
     ):
         self.connection_map = {}
         self.DB_URL = db_url
@@ -54,6 +55,7 @@ class Database:
             connect_args={"check_same_thread": False}
             if "sqlite" in str(self.DB_URL)
             else {},
+            echo=echo,
         )
         self.use_alembic = use_alembic
         self.__metadata__: BaseMeta = BaseMeta()
@@ -656,6 +658,7 @@ class Database:
         debug: bool = False,
         testing: bool = False,
         use_alembic: bool = False,
+        echo: bool = False,
     ):
 
         cache_config = {"cache_enabled": cache_enabled}
@@ -669,6 +672,7 @@ class Database:
             debug=debug,
             testing=testing,
             use_alembic=use_alembic,
+            echo=echo,
             **cache_config,
         )
 
