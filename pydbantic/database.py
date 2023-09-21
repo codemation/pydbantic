@@ -14,6 +14,7 @@ from alembic.operations import Operations
 from databases import Database as _Database
 from databases import backends
 from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from pydbantic.cache import Redis
 from pydbantic.core import BaseMeta, DatabaseInit, DataBaseModel, TableMeta
@@ -37,8 +38,8 @@ class Database:
         debug: bool = False,
         testing: bool = False,
         use_alembic: bool = False,
+        echo: bool = False,
     ):
-        self.connection_map = {}
         self.DB_URL = db_url
         self.tables = []
         self.cache_enabled = cache_enabled
@@ -55,9 +56,12 @@ class Database:
             connect_args={"check_same_thread": False}
             if "sqlite" in str(self.DB_URL)
             else {},
+            echo=echo,
         )
+
         self.use_alembic = use_alembic
         self.__metadata__: BaseMeta = BaseMeta()
+        self._connection = self.db_connection()
 
         self.DEFAULT_TRANSLATIONS = DEFAULT_TRANSLATIONS
 
@@ -611,16 +615,19 @@ class Database:
 
         self.log.debug(f"database query: {query} - values {values}")
 
-        async with self as conn:
-            return await conn.execute(query=query, values=values)
+        async with self as database:
+            async with database.connection() as conn:
+                return await conn.execute(query=query, values=values)
 
     async def execute_many(self, query, values):
         """execute bulk insert"""
         if self.cache_enabled:
             await self.cache.invalidate(query.table.name)
 
-        async with self as conn:
-            return await conn.execute_many(query=query, values=values)
+        async with self as database:
+            async with database.connection() as conn:
+                print(f"running {query} insertion of {len(values)} values")
+                return await conn.execute_many(query=query, values=values)
 
     async def fetch(self, query, table_name, values=None):
         """get a row from table matching query or pull from cache if enabled
@@ -635,8 +642,9 @@ class Database:
 
         self.log.debug(f"running query: {query} with {values}")
 
-        async with self as conn:
-            row = await conn.fetch_all(query=query)
+        async with self as database:
+            async with database.connection() as conn:
+                row = await conn.fetch_all(query=query)
 
         if self.cache_enabled and row:
             # add to database cache with table name flag
@@ -687,35 +695,24 @@ class Database:
         return self
 
     async def db_connection(self):
+        pool_config = {"min_size": 5, "max_size": 20}
         conn_factory = (
-            {"factory": SQLiteConnection} if "sqlite" in self.DB_URL.lower() else {}
+            {"factory": SQLiteConnection}
+            if "sqlite" in self.DB_URL.lower()
+            else pool_config
         )
+        database = _Database(self.DB_URL, **conn_factory)
+        await database.connect()
+        while True:
+            status = yield database
+            if status == "finished":
+                self.log.debug(f"db_connection - closed")
+                break
 
-        async with _Database(self.DB_URL, **conn_factory) as connection:
-            while True:
-                status = yield connection
-                if status == "finished":
-                    self.log.debug(f"db_connection - closed")
-                    break
+        yield database.disconnect()
 
     async def __aenter__(self):
-        for conn_id in self.connection_map:
-            if self.connection_map[conn_id]["conn"].ag_running:
-                continue
-            self.connection_map[conn_id]["last"] = time.time()
-            return await self.connection_map[conn_id]["conn"].asend(None)
-
-        conn_id = str(uuid.uuid4())
-        db_connection = self.db_connection()
-        self.connection_map[conn_id] = {"conn": db_connection, "last": time.time()}
-        return await db_connection.asend(None)
+        return await self._connection.asend(None)
 
     async def __aexit__(self, exc_type, exc, tb):
-        for conn_id in self.connection_map.copy():
-            if not self.connection_map[conn_id]["conn"].ag_running:
-                if time.time() - self.connection_map[conn_id]["last"] > 120:
-                    try:
-                        await self.connection_map[conn_id]["conn"].asend("finished")
-                    except StopAsyncIteration:
-                        pass
-                    del self.connection_map[conn_id]
+        pass
