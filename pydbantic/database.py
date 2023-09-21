@@ -12,9 +12,7 @@ from alembic import context
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from databases import Database as _Database
-from databases import backends
 from sqlalchemy import create_engine
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from pydbantic.cache import Redis
 from pydbantic.core import BaseMeta, DatabaseInit, DataBaseModel, TableMeta
