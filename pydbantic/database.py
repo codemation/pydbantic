@@ -701,8 +701,9 @@ class Database:
         )
         database = _Database(self.DB_URL, **conn_factory)
         await database.connect()
+        self._database = database
         while True:
-            status = yield database
+            status = yield "running"
             if status == "finished":
                 self.log.debug(f"db_connection - closed")
                 break
@@ -710,7 +711,9 @@ class Database:
         yield database.disconnect()
 
     async def __aenter__(self):
-        return await self._connection.asend(None)
+        if not self._connection.ag_running:
+            await self._connection.asend(None)
+        return self._database
 
     async def __aexit__(self, exc_type, exc, tb):
         pass
