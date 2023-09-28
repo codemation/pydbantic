@@ -1267,11 +1267,11 @@ class DataBaseModel(BaseModel):
     def deep_join(
         cls: Type[T],
         model_ref,
-        model_ref_primary_key: str,
         column_ref: str,
         session_query: Query,
         tables_to_select: list,
         models_selected: set,
+        delete_query: bool = False,
         root_model: T = None,
     ) -> Tuple[Query, List[Tuple[sqlalchemy.Table, T, str, T]]]:
         """
@@ -1304,7 +1304,7 @@ class DataBaseModel(BaseModel):
 
         session_query = _link_table.outer_join(session_query)
 
-        if not cls is root_model:
+        if not cls is root_model and not delete_query:
             session_query = session_query.add_columns(*[c for c in table.c])
             tables_to_select.append((table, cls, column_ref, model_ref))
         models_selected.add(cls.__tablename__)
@@ -1313,11 +1313,11 @@ class DataBaseModel(BaseModel):
         for foreign_model, column_ref in foreign_models:
             session_query, tables_to_select = foreign_model.deep_join(
                 cls,
-                primary_key,
                 column_ref,
                 session_query,
                 tables_to_select,
                 models_selected,
+                delete_query=delete_query,
             )
         return session_query, tables_to_select
 
@@ -1363,7 +1363,6 @@ class DataBaseModel(BaseModel):
                 ][1]
                 sel, tables_to_select = foreign_model.deep_join(
                     cls,
-                    primary_key,
                     column_name,
                     sel,
                     tables_to_select,
@@ -1654,7 +1653,6 @@ class DataBaseModel(BaseModel):
                     continue
                 sel, tables_to_select = foreign_model.deep_join(
                     cls,
-                    primary_key,
                     column_name,
                     sel,
                     tables_to_select,
@@ -1921,6 +1919,22 @@ class DataBaseModel(BaseModel):
         )
 
         query, _ = cls.where(delete(table), {}, delete_condition)
+        return await database.execute(query, None)
+
+    @classmethod
+    async def delete_filter(
+        cls: Type[T], *conditions: List[DataBaseModelCondition], **column_filters
+    ) -> Optional[int]:
+        table = cls.get_table()
+        database = cls.__metadata__.database
+
+        columns = [k for k in cls.__fields__]
+        if not column_filters and not conditions:
+            raise Exception(
+                f"{cls.__name__}.delete_filter() expects keyword arguments for columns: {columns} or conditions"
+            )
+
+        query, values = cls.where(delete(table), column_filters, *conditions)
         return await database.execute(query, None)
 
     async def delete(self) -> int:

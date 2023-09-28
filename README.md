@@ -172,13 +172,22 @@ See also filtering [operators](https://pydbantic.readthedocs.io/en/latest/model-
 
 ### Deleting
 ```python
-    # remove all managers not employed anymore
+    # one by one
     for manager in await Employee.filter(
         position=hr_manager,
         is_employed=False
     ):
         await manager.delete()
 ```
+
+```python
+    # all at once
+    await Employee.delete_filter(
+        Employee.is_employed == True
+    )
+
+```
+
 ### Updating
 ```python
     # raise salary of all managers

@@ -280,6 +280,11 @@ terminated_employees = await Employees.filter(
 await Employees.delete_many(terminated_employees)
 ```
 
+```python
+await Employees.delete_filter(
+    Employees.contains('name', 'terminated')
+)
+```
 
 ### Models with arrays of Foreign Objects
 
