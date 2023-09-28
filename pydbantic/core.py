@@ -1271,7 +1271,6 @@ class DataBaseModel(BaseModel):
         session_query: Query,
         tables_to_select: list,
         models_selected: set,
-        delete_query: bool = False,
         root_model: T = None,
     ) -> Tuple[Query, List[Tuple[sqlalchemy.Table, T, str, T]]]:
         """
@@ -1304,7 +1303,7 @@ class DataBaseModel(BaseModel):
 
         session_query = _link_table.outer_join(session_query)
 
-        if not cls is root_model and not delete_query:
+        if not cls is root_model:
             session_query = session_query.add_columns(*[c for c in table.c])
             tables_to_select.append((table, cls, column_ref, model_ref))
         models_selected.add(cls.__tablename__)
@@ -1312,12 +1311,7 @@ class DataBaseModel(BaseModel):
 
         for foreign_model, column_ref in foreign_models:
             session_query, tables_to_select = foreign_model.deep_join(
-                cls,
-                column_ref,
-                session_query,
-                tables_to_select,
-                models_selected,
-                delete_query=delete_query,
+                cls, column_ref, session_query, tables_to_select, models_selected
             )
         return session_query, tables_to_select
 
