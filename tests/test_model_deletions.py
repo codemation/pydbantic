@@ -1,5 +1,7 @@
 import pytest
 
+from tests.models import Department
+
 
 @pytest.mark.asyncio
 async def test_model_deletions(loaded_database_and_model):
@@ -36,8 +38,12 @@ async def test_model_deletions(loaded_database_and_model):
 
     assert len(result) == 201
 
-    await Employees.delete_many(result)
+    await Employees.delete_many(result[:100])
 
     result = await Employees.all()
 
-    assert len(result) == 0
+    assert len(result) == 101
+
+    await Employees.delete_filter(Employees.is_employed == True)
+
+    assert await Employees.count() == 0
