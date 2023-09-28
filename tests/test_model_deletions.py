@@ -44,6 +44,6 @@ async def test_model_deletions(loaded_database_and_model):
 
     assert len(result) == 101
 
-    assert await Employees.delete_filter(Employees.is_employed == True) == 101
+    await Employees.delete_filter(Employees.is_employed == True)
 
-    result = await Employees.count() == 0
+    assert await Employees.count() == 0
