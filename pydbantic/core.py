@@ -61,7 +61,6 @@ class RelationshipRef(BaseModel):
     _model_: Callable = PrivateAttr()
 
     def __init__(self, model, primary_key, value, default=None):
-
         super().__init__(primary_key=primary_key, value=value)
         self._method_ = get_model_getter(model, primary_key, value)
         self._default_ = default
@@ -141,7 +140,6 @@ def PrimaryKey(
     default=...,
     autoincrement: Union[bool, None] = None,
 ) -> Any:
-
     return get_field_config(
         default=default,
         primary_key=True,
@@ -434,12 +432,10 @@ class DataBaseModel(BaseModel):
 
     @classmethod
     def check_if_subtype(cls, field):
-
         database_model = None
 
         if isinstance(field["type"], typing._GenericAlias):
             for sub in field["type"].__args__:
-
                 if isinstance(sub, ForwardRef):
                     database_model = sub.__forward_value__
 
@@ -737,7 +733,6 @@ class DataBaseModel(BaseModel):
                 config.update(cls.__fields__[field_property].field_info.__dict__)
             field_constraints[field_property] = []
             if "primary_key" in config:
-
                 if primary_key:
                     raise Exception(
                         f"Duplicate Primary Key Specified for {cls.__name__}"
@@ -758,7 +753,6 @@ class DataBaseModel(BaseModel):
                 default_fields[field_property] = config["default"]
 
             if "autoincrement" in config:
-
                 autoincr_fields[field_property] = config["autoincrement"]
 
             if "sqlalchemy_type" in config:
@@ -814,7 +808,6 @@ class DataBaseModel(BaseModel):
         name = cls.__name__
         primary_key = model_fields[0]["name"] if not primary_key else primary_key
         if name not in cls.__metadata__.tables or update:
-
             cls.__metadata__.tables[name] = {
                 "primary_key": primary_key,
                 "column_map": {},
@@ -828,7 +821,6 @@ class DataBaseModel(BaseModel):
         columns = []
         link_tables = []
         for i, field in enumerate(model_fields):
-
             data_base_model = cls.check_if_subtype(field)
             if data_base_model:
                 # ensure DataBaseModel also exists in Database, even if not already
@@ -941,7 +933,6 @@ class DataBaseModel(BaseModel):
         link_chain = []
 
         for k, v in data.items():
-
             serialize = self.__metadata__.tables[name]["column_map"][k][2]
 
             autoincrement = self.__metadata__.tables[name]["column_map"][k][4]
@@ -950,7 +941,6 @@ class DataBaseModel(BaseModel):
                 continue
 
             if k in self.__metadata__.tables[name]["foreign_keys"]:
-
                 # use the foreign DataBaseModel's primary key / value
                 foreign_type = self.__metadata__.tables[name]["column_map"][k][1]
                 foreign_name = foreign_type.__name__
@@ -978,7 +968,6 @@ class DataBaseModel(BaseModel):
                     foreign_values = [foreign_values]
 
                 for v in foreign_values:
-
                     if v is None:
                         continue
 
@@ -1025,7 +1014,6 @@ class DataBaseModel(BaseModel):
                             },
                         )
                         if exists == 0:
-
                             foreign_model = foreign_type(**v)
                             link_chain.extend(
                                 await foreign_model._save(return_links=True)
@@ -1086,7 +1074,6 @@ class DataBaseModel(BaseModel):
     def where(
         cls, query: Query, where: dict, *conditions: List[DataBaseModelCondition]
     ) -> Tuple[Query, tuple]:
-
         table = cls.get_table()
         conditions = list(conditions)
         values = []
@@ -1245,7 +1232,6 @@ class DataBaseModel(BaseModel):
 
     @classmethod
     async def exists(cls, **column_values: dict) -> bool:
-
         table = cls.get_table()
         primary_key = cls.__metadata__.tables[cls.__name__]["primary_key"]
 
@@ -1282,7 +1268,6 @@ class DataBaseModel(BaseModel):
         foreign_models = []
         for column_name in cls.__metadata__.tables[cls.__name__]["column_map"]:
             if column_name in cls.__metadata__.tables[cls.__name__]["foreign_keys"]:
-
                 # foreign model
                 foreign_model = cls.__metadata__.tables[cls.__name__]["column_map"][
                     column_name
@@ -1459,7 +1444,6 @@ class DataBaseModel(BaseModel):
                 if not row_results.get(f_p_key) == f_p_key_value:
                     new_data = True
                     for k, result_ind in results_map[f_model].items():
-
                         serialized = cls.__metadata__.tables[f_model.__name__][
                             "column_map"
                         ][k][2]
@@ -1539,7 +1523,6 @@ class DataBaseModel(BaseModel):
                     model_ins = None
 
                 if is_array_in_parent:
-
                     if not column_name in row_results:
                         row_results[column_name] = []
                     if not column_name in decoded_results[result_key]:
@@ -1750,7 +1733,6 @@ class DataBaseModel(BaseModel):
                 if not row_results.get(f_p_key) == f_p_key_value:
                     new_data = True
                     for k, result_ind in results_map[f_model].items():
-
                         serialized = cls.__metadata__.tables[f_model.__name__][
                             "column_map"
                         ][k][2]

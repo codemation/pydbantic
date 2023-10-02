@@ -166,7 +166,6 @@ class Database:
             await table_meta.update()
 
     def add_table(self, table: DataBaseModel):
-
         if not table in self.tables:
             self.tables.append(table)
         table.setup(self)
@@ -660,7 +659,6 @@ class Database:
         use_alembic: bool = False,
         echo: bool = False,
     ):
-
         cache_config = {"cache_enabled": cache_enabled}
         if redis_url and cache_enabled:
             cache_config["redis_url"] = redis_url

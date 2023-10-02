@@ -49,7 +49,6 @@ async def empty_database_and_model_no_cache(request):
 @pytest.mark.asyncio
 @pytest.fixture(params=[DB_URL])
 async def database_with_cache(request):
-
     db = await Database.create(
         request.param,
         tables=[EmployeeInfo, Employee, Positions, Department, Parent, Child],
@@ -66,7 +65,6 @@ async def database_with_cache(request):
 
 @pytest.fixture()
 async def empty_database_and_model_with_cache(database_with_cache):
-
     db = database_with_cache
 
     yield db, Employee
