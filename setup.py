@@ -1,9 +1,9 @@
 import setuptools
 
 BASE_REQUIREMENTS = [
-    'SQLAlchemy==1.4.28',
+    'SQLAlchemy==1.4.42',
     'databases==0.8.0', 
-    'redis==5.0.1', 
+    'redis==5.0.1',
     'pydantic==1.9.1',
     'alembic==1.8.1'
 ]

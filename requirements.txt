@@ -1,4 +1,4 @@
-SQLAlchemy==1.4.28
+SQLAlchemy==1.4.42
 databases==0.8.0
 redis>=4.2.0
 pydantic>=1.9.1,<2
